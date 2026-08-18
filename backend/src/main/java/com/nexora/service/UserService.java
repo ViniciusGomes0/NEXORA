@@ -7,22 +7,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Random;
-
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final Random random = new Random();
 
     public User register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.getEmail()))
             throw new RuntimeException("Email já em uso");
 
-        String tag = generateTag(req.getUsername());
+        String tag = generateTag();
 
         User user = User.builder()
                 .username(req.getUsername())
@@ -36,16 +32,9 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    private String generateTag(String username) {
-        List<String> usedTags = userRepository.findTagsByUsername(username);
-        if (usedTags.size() >= 9999)
-            throw new RuntimeException("Limite de contas com esse username atingido");
-
-        String tag;
-        do {
-            tag = String.format("%04d", random.nextInt(9999) + 1);
-        } while (usedTags.contains(tag));
-        return tag;
+    private String generateTag() {
+        long next = userRepository.count() + 1;
+        return String.format("%04d", next);
     }
 
     public User findByEmail(String email) {
