@@ -6,22 +6,12 @@ if (!getToken()) {
     window.location.href = 'index.html';
 }
 
-function syncHomeSidebarProfile() {
-    const user = getUser();
-    const name = user.displayName || user.username || '?';
-    document.getElementById('hspName').textContent = name;
-    document.getElementById('hspTag').textContent = '#' + (user.tag || user.username || '');
-    updateUserAvatar(document.getElementById('hspAvatar'), user.avatarUrl, name);
-}
-
 // Init
 (async function init() {
     const user = getUser();
     document.getElementById('userDisplayName').textContent = user.displayName || user.username;
     document.getElementById('userTag').textContent = '#' + (user.tag || user.username || '');
     updateUserAvatar(document.getElementById('userAvatarSmall'), user.avatarUrl, user.displayName || user.username);
-    document.getElementById('channelSidebar').classList.add('home-mode');
-    syncHomeSidebarProfile();
 
     await loadServers();
     connectWebSocket();
@@ -52,7 +42,6 @@ async function loadServers() {
 
 async function selectServer(server) {
     currentServer = server;
-    document.getElementById('channelSidebar').classList.remove('home-mode');
     document.getElementById('currentServerName').textContent = server.name;
 
     // Mostra engrenagem só para o dono
@@ -94,7 +83,6 @@ async function openTextChannel(channel) {
     currentChannel = channel;
     document.getElementById('homeView').classList.add('hidden');
     document.getElementById('chatView').classList.remove('hidden');
-    document.getElementById('membersSidebar').classList.remove('hidden');
     document.getElementById('channelName').textContent = channel.name;
     document.getElementById('messageInput').placeholder = `Mensagem #${channel.name}`;
 
@@ -290,7 +278,6 @@ async function submitDeleteChannel() {
             currentChannel = null;
             document.getElementById('chatView').classList.add('hidden');
             document.getElementById('homeView').classList.remove('hidden');
-            document.getElementById('membersSidebar').classList.add('hidden');
         }
         await refreshChannels();
     } catch (e) {
@@ -341,9 +328,6 @@ async function refreshChannels() {
 function showHome() {
     document.getElementById('homeView').classList.remove('hidden');
     document.getElementById('chatView').classList.add('hidden');
-    document.getElementById('membersSidebar').classList.add('hidden');
-    document.getElementById('channelSidebar').classList.add('home-mode');
-    syncHomeSidebarProfile();
     currentServer = null;
     currentChannel = null;
     document.getElementById('currentServerName').textContent = 'Selecione um servidor';
@@ -545,7 +529,6 @@ async function saveProfile() {
     // Atualiza UI
     document.getElementById('userDisplayName').textContent = res.displayName;
     updateUserAvatar(document.getElementById('userAvatarSmall'), res.avatarUrl, res.displayName);
-    syncHomeSidebarProfile();
     delete avatarEl.dataset.pendingUrl;
 
     showToast('Perfil atualizado!', 'success');

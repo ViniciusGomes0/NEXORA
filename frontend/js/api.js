@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:8080/api';
 
 function getToken() {
     return localStorage.getItem('nexora_token');

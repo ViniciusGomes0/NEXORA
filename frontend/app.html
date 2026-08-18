@@ -34,15 +34,6 @@
             </button>
         </div>
 
-        <!-- Painel de perfil (apenas na home) -->
-        <div id="homeSidebarPanel" class="hsp">
-            <div class="hsp-avatar" id="hspAvatar"></div>
-            <div class="hsp-name" id="hspName"></div>
-            <div class="hsp-tag" id="hspTag"></div>
-            <div class="hsp-status"><span class="hsp-dot"></span>Online</div>
-            <button class="hsp-edit-btn" onclick="openProfilePanel()">Editar Perfil</button>
-        </div>
-
         <!-- Canais (área scrollável) -->
         <div class="channels-scroll">
             <div id="textChannels">
@@ -76,21 +67,19 @@
                 </div>
                 <div class="voice-bar-actions">
                     <button class="voice-bar-btn" onclick="toggleScreenShare()" id="screenShareBtn" title="Compartilhar Tela">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="13" rx="2"/>
-                            <line x1="8" y1="21" x2="16" y2="21"/>
-                            <line x1="12" y1="16" x2="12" y2="21"/>
-                            <polyline points="9 10 12 7 15 10"/>
-                            <line x1="12" y1="7" x2="12" y2="13"/>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <polyline points="8 21 12 17 16 21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                            <polyline points="9 8 12 5 15 8"/>
+                            <line x1="12" y1="5" x2="12" y2="13"/>
                         </svg>
-                        <span class="vbb-label">Tela</span>
                     </button>
                     <button class="voice-bar-btn leave" onclick="leaveVoice()" title="Desconectar">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M23 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 10a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.69 8.76A16 16 0 0 0 12 13.07a16 16 0 0 0 4.31 2.31l1.62-1.62a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 24.01 16"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.42 19.42 0 0 1 4.26 9.6 19.79 19.79 0 0 1 1.18 1 2 2 0 0 1 3.18-1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.16 8.16"/>
+                            <line x1="23" y1="1" x2="1" y2="23"/>
                         </svg>
-                        <span class="vbb-label">Sair</span>
                     </button>
                 </div>
             </div>
@@ -113,55 +102,11 @@
     <!-- Main content -->
     <main id="mainContent">
         <div id="homeView" class="home-view">
-            <div class="home-bg">
-                <div class="orb orb-1"></div>
-                <div class="orb orb-2"></div>
-                <div class="orb orb-3"></div>
-            </div>
-
-            <div class="home-hero">
-                <div class="home-logo">
-                    <svg width="72" height="72" viewBox="0 0 48 48" fill="none">
-                        <defs>
-                            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#7c3aed"/>
-                                <stop offset="100%" style="stop-color:#a855f7"/>
-                            </linearGradient>
-                        </defs>
-                        <polygon points="24,2 46,13 46,35 24,46 2,35 2,13" fill="url(#logoGrad)"/>
-                        <text x="24" y="31" text-anchor="middle" fill="white" font-size="20" font-weight="bold" font-family="sans-serif">N</text>
-                    </svg>
-                </div>
-                <h1 class="home-title">Bem-vindo ao <span class="nexora-text">NEXORA</span></h1>
-                <p class="home-subtitle">Seu espaço para comunidades, conversas e conexões reais.<br>Selecione um servidor ou comece o seu agora.</p>
-                <div class="home-actions">
-                    <button class="btn-primary home-btn" onclick="openModal('createServer')">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Criar Servidor
-                    </button>
-                    <button class="btn-secondary home-btn" onclick="openModal('joinServer')">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                        Entrar com Convite
-                    </button>
-                </div>
-            </div>
-
-            <div class="home-features">
-                <div class="feature-card">
-                    <div class="feature-icon">💬</div>
-                    <div class="feature-title">Mensagens em Tempo Real</div>
-                    <div class="feature-desc">Converse em canais de texto organizados, rápidos e sempre sincronizados.</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎙️</div>
-                    <div class="feature-title">Voz & Compartilhamento</div>
-                    <div class="feature-desc">Entre em canais de voz e compartilhe sua tela com quem importa.</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🌐</div>
-                    <div class="feature-title">Comunidades Suas</div>
-                    <div class="feature-desc">Crie servidores com canais, membros e convites personalizados.</div>
-                </div>
+            <h1>Bem-vindo ao <span class="nexora-text">NEXORA</span></h1>
+            <p>Selecione um servidor à esquerda ou crie um novo.</p>
+            <div class="home-actions">
+                <button class="btn-primary" onclick="openModal('createServer')">Criar Servidor</button>
+                <button class="btn-secondary" onclick="openModal('joinServer')">Entrar com Convite</button>
             </div>
         </div>
 
@@ -170,12 +115,7 @@
                 <span class="hash">#</span>
                 <span id="channelName">canal</span>
                 <div class="header-actions">
-                    <button class="btn-icon" onclick="openModal('inviteCode')" title="Copiar convite">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                        </svg>
-                    </button>
+                    <button class="btn-icon" onclick="openModal('inviteCode')" title="Copiar convite">🔗</button>
                     <button class="btn-icon" onclick="openModal('createChannel')" title="Novo canal">+</button>
                 </div>
             </div>
@@ -188,7 +128,7 @@
     </main>
 
     <!-- Members sidebar -->
-    <aside id="membersSidebar" class="hidden">
+    <aside id="membersSidebar">
         <div class="sidebar-header">Membros</div>
         <div id="membersList"></div>
     </aside>

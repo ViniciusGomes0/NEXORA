@@ -1,9 +1,0 @@
-[build]
-builder = "nixpacks"
-buildCommand = "mvn clean package -DskipTests"
-
-[deploy]
-startCommand = "java -jar target/nexora-backend-1.0.0.jar"
-healthcheckPath = "/api/auth/login"
-healthcheckTimeout = 60
-restartPolicyType = "on_failure"

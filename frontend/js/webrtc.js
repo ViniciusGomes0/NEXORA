@@ -1,7 +1,6 @@
 let localStream = null;
 let screenStream = null;
 let peers = {};
-let peerInfo = {};
 let isMuted = false;
 let isDeafened = false;
 let isScreenSharing = false;
@@ -33,9 +32,8 @@ async function joinVoiceChannel(channelId, channelName) {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         updateMicState();
-        const selfUser = getUser();
-        addVoiceParticipant(selfUser.displayName || selfUser.username, true, 'vp-local', selfUser.avatarUrl);
-        addSidebarVoiceMember(channelId, selfUser.displayName || selfUser.username, 'vp-local', selfUser.avatarUrl);
+        addVoiceParticipant(getUser().displayName, true, 'vp-local');
+        addSidebarVoiceMember(channelId, getUser().displayName, 'vp-local');
         startSpeakingDetection();
     } catch (err) {
         console.error('Mic error:', err);
@@ -48,7 +46,6 @@ async function joinVoiceChannel(channelId, channelName) {
 function leaveVoice() {
     stopSpeakingDetection();
     clearSidebarVoiceMembers();
-    peerInfo = {};
 
     if (localStream) {
         localStream.getTracks().forEach(t => t.stop());
@@ -200,18 +197,17 @@ function toggleDeafen() {
 }
 
 // ── Participantes (painel de membros na direita) ───────────────
-function addVoiceParticipant(displayName, isLocal = false, id = null, avatarUrl = '') {
+function addVoiceParticipant(displayName, isLocal = false, id = null) {
     const container = document.getElementById('voiceParticipants');
     const elemId = id || `vp-${displayName}`;
     if (document.getElementById(elemId)) return;
 
     const initial = displayName ? displayName[0].toUpperCase() : '?';
-    const avatarStyle = avatarUrl ? `style="background-image:url('${avatarUrl}');background-size:cover;background-position:center;"` : '';
     const div = document.createElement('div');
     div.className = 'voice-participant';
     div.id = elemId;
     div.innerHTML = `
-        <div class="vp-avatar" ${avatarStyle}>${avatarUrl ? '' : initial}</div>
+        <div class="vp-avatar">${initial}</div>
         <div class="vp-name">${displayName}${isLocal ? ' (você)' : ''}</div>
     `;
     container.appendChild(div);
@@ -264,15 +260,11 @@ function subscribeToVoiceSignaling(channelId) {
         if (signal.from === myId) return;
 
         if (signal.type === 'join') {
-            peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
-            addSidebarVoiceMember(channelId, signal.displayName || `Usuário ${signal.from}`, `vp-${signal.from}`, signal.avatarUrl);
             const pc = createPeer(signal.from, channelId);
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            const me = getUser();
-            sendSignal(channelId, { type: 'offer', sdp: offer, to: signal.from, from: myId, displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || '' });
+            sendSignal(channelId, { type: 'offer', sdp: offer, to: signal.from, from: myId });
         } else if (signal.type === 'offer' && signal.to === myId) {
-            if (signal.displayName) peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
             const pc = createPeer(signal.from, channelId);
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
             const answer = await pc.createAnswer();
@@ -304,9 +296,7 @@ function createPeer(peerId, channelId) {
     };
 
     pc.ontrack = (e) => {
-        const info = peerInfo[peerId] || {};
-        addVoiceParticipant(info.displayName || `Usuário ${peerId}`, false, `vp-${peerId}`, info.avatarUrl);
-        addSidebarVoiceMember(currentVoiceChannel, info.displayName || `Usuário ${peerId}`, `vp-${peerId}`, info.avatarUrl);
+        addVoiceParticipant(`Usuário ${peerId}`, false, `vp-${peerId}`);
         addRemoteVideo(e.streams[0], peerId);
     };
 
@@ -314,8 +304,7 @@ function createPeer(peerId, channelId) {
 }
 
 function announcePresence(channelId) {
-    const user = getUser();
-    sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
+    sendSignal(channelId, { type: 'join', from: String(getUser().id) });
 }
 
 function sendSignal(channelId, signal) {
@@ -325,18 +314,16 @@ function sendSignal(channelId, signal) {
 }
 
 // ── Membros na sidebar do canal de voz ─────────────────────────
-function addSidebarVoiceMember(channelId, displayName, memberId, avatarUrl = '') {
+function addSidebarVoiceMember(channelId, displayName, memberId) {
     const channelEl = document.querySelector(`[data-channel-id="${channelId}"]`);
     if (!channelEl) return;
     if (document.getElementById(`svm-${memberId}`)) return;
 
-    const initial = displayName ? displayName[0].toUpperCase() : '?';
-    const avatarStyle = avatarUrl ? `style="background-image:url('${avatarUrl}');background-size:cover;background-position:center;"` : '';
     const div = document.createElement('div');
     div.className = 'voice-sidebar-member';
     div.id = `svm-${memberId}`;
     div.innerHTML = `
-        <div class="vsm-avatar" ${avatarStyle}>${avatarUrl ? '' : initial}</div>
+        <div class="vsm-avatar">${displayName[0].toUpperCase()}</div>
         <span>${displayName}</span>
         <span class="vsm-mic" id="vsm-mic-${memberId}">🎙️</span>
     `;
