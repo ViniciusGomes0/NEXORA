@@ -16,7 +16,13 @@ let nsDestNode = null;
 let nsProcessedStream = null;
 
 const ICE_CONFIG = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'turn:openrelay.metered.ca:80',          username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443',         username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
 };
 
 // Constraints de áudio de alta qualidade — 48 kHz, stereo, sem supressões automáticas ruins
@@ -343,6 +349,7 @@ function updateMicState() {
 function toggleDeafen() {
     isDeafened = !isDeafened;
     document.querySelectorAll('.remote-audio').forEach(a => { a.muted = isDeafened; });
+    document.querySelectorAll('.remote-video').forEach(v => { v.muted = isDeafened; });
     const btn = document.getElementById('deafBtn');
     btn.classList.toggle('muted', isDeafened);
     btn.textContent = isDeafened ? '🔕' : '🎧';
@@ -372,37 +379,43 @@ function removeVoiceParticipant(id) {
 }
 
 function addRemoteVideo(stream, userId) {
-    // Áudio vai pro container oculto
+    if (!stream) return;
+
     if (stream.getVideoTracks().length === 0) {
+        // Stream só de áudio (microfone)
         const audioContainer = document.getElementById('remoteAudios');
-        if (document.getElementById(`ra-${userId}`)) return;
-        const audio = document.createElement('audio');
-        audio.autoplay = true;
-        audio.className = 'remote-audio';
-        audio.id = `ra-${userId}`;
+        let audio = document.getElementById(`ra-${userId}`);
+        if (!audio) {
+            audio = document.createElement('audio');
+            audio.autoplay = true;
+            audio.className = 'remote-audio';
+            audio.id = `ra-${userId}`;
+            audio.volume = 1.0;
+            audioContainer.appendChild(audio);
+        }
         audio.srcObject = stream;
-        audio.volume = 1.0;
-        if (isDeafened) audio.muted = true;
-        audioContainer.appendChild(audio);
+        audio.muted = isDeafened;
         return;
     }
 
-    // Vídeo vai pro overlay
-    const container = document.getElementById('remoteVideos');
-    if (document.getElementById(`rv-${userId}`)) return;
-
+    // Stream com vídeo (compartilhamento de tela)
     document.getElementById('screenShareOverlay').classList.remove('hidden');
-        document.getElementById('screenShareOverlay').classList.remove('hidden');
-
-    const wrap = document.createElement('div');
-    wrap.className = 'remote-video-wrap';
-    wrap.id = `rv-${userId}`;
-    const video = document.createElement('video');
-    video.autoplay = true;
-    video.playsinline = true;
-    video.srcObject = stream;
-    wrap.appendChild(video);
-    container.appendChild(wrap);
+    const container = document.getElementById('remoteVideos');
+    let wrap = document.getElementById(`rv-${userId}`);
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'remote-video-wrap';
+        wrap.id = `rv-${userId}`;
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.playsinline = true;
+        video.className = 'remote-video';
+        // Áudio da tela também respeita deafen
+        video.muted = isDeafened;
+        wrap.appendChild(video);
+        container.appendChild(wrap);
+    }
+    wrap.querySelector('video').srcObject = stream;
 }
 
 // ── WebRTC Signaling ───────────────────────────────────────────
@@ -445,15 +458,45 @@ function createPeer(peerId, channelId) {
     const pc = new RTCPeerConnection(ICE_CONFIG);
     peers[peerId] = pc;
 
+    let makingOffer = false;
+
     if (localStream) {
         localStream.getTracks().forEach(track => {
             const sender = pc.addTrack(track, localStream);
             if (track.kind === 'audio') {
-                // Aplica após negociação (setLocalDescription define os encodings)
                 pc.addEventListener('negotiationneeded', () => applyHighQualityAudio(sender), { once: true });
             }
         });
     }
+
+    // Se já está compartilhando tela, adiciona os tracks para novos participantes
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => {
+            const sender = pc.addTrack(track, screenStream);
+            if (track.kind === 'video') applyHighQualityParams(sender);
+        });
+    }
+
+    // Renegociação automática (crítico para screen share funcionar)
+    pc.onnegotiationneeded = async () => {
+        if (makingOffer) return;
+        try {
+            makingOffer = true;
+            const offer = await pc.createOffer();
+            if (pc.signalingState !== 'stable') return;
+            const improved = { type: offer.type, sdp: preferOpusInSDP(offer.sdp) };
+            await pc.setLocalDescription(improved);
+            const me = getUser();
+            sendSignal(channelId, {
+                type: 'offer', sdp: improved, to: peerId,
+                from: String(me.id), displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || ''
+            });
+        } catch (e) {
+            console.error('Renegotiation error:', e);
+        } finally {
+            makingOffer = false;
+        }
+    };
 
     pc.onicecandidate = (e) => {
         if (e.candidate) {
