@@ -78,7 +78,6 @@ async function joinVoiceChannel(channelId, channelName) {
     subscribeToVoiceSignaling(channelId);
     announcePresence(channelId);
 
-    // Reenvia presença a cada 5s para quem acabou de abrir o servidor ver quem está na call
     if (presenceInterval) clearInterval(presenceInterval);
     presenceInterval = setInterval(() => {
         if (currentVoiceChannel === channelId) announcePresence(channelId);
@@ -187,10 +186,12 @@ function resetNoiseSuppression() {
 function leaveVoice() {
     if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
 
-    // Avisa todos os peers que saiu
-    if (currentVoiceChannel) {
+    // Avisa todos os peers que saiu — captura o canal antes de zerar
+    const leavingChannel = currentVoiceChannel;
+    currentVoiceChannel = null;
+    if (leavingChannel) {
         const me = getUser();
-        sendSignal(currentVoiceChannel, { type: 'leave', from: String(me.id) });
+        sendSignal(leavingChannel, { type: 'leave', from: String(me.id) });
     }
 
     resetNoiseSuppression();
@@ -208,7 +209,6 @@ function leaveVoice() {
     }
     Object.values(peers).forEach(pc => pc.close());
     peers = {};
-    currentVoiceChannel = null;
 
     document.getElementById('voiceBar').classList.add('hidden');
     document.getElementById('voiceParticipants').innerHTML = '';
@@ -665,21 +665,17 @@ function announcePresence(channelId) {
     sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
 }
 
-// Inscreve passivamente nos canais de voz do servidor para mostrar quem está na call na sidebar
 function subscribeVoiceSidebar(voiceChannels) {
-    // Cancela inscrições anteriores
     voiceSidebarSubs.forEach(sub => { try { sub.unsubscribe(); } catch(e) {} });
     voiceSidebarSubs = [];
 
     if (!stompClient || !stompClient.connected) {
-        // Tenta novamente após conexão
         setTimeout(() => subscribeVoiceSidebar(voiceChannels), 1000);
         return;
     }
 
     voiceChannels.forEach(ch => {
         const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
-            // Se já está nesse canal, subscribeToVoiceSignaling cuida — evita duplicar
             if (currentVoiceChannel === ch.id) return;
 
             const signal = JSON.parse(frame.body);

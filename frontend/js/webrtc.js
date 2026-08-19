@@ -186,10 +186,12 @@ function resetNoiseSuppression() {
 function leaveVoice() {
     if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
 
-    // Avisa todos os peers que saiu
-    if (currentVoiceChannel) {
+    // Avisa todos os peers que saiu — captura o canal antes de zerar
+    const leavingChannel = currentVoiceChannel;
+    currentVoiceChannel = null;
+    if (leavingChannel) {
         const me = getUser();
-        sendSignal(currentVoiceChannel, { type: 'leave', from: String(me.id) });
+        sendSignal(leavingChannel, { type: 'leave', from: String(me.id) });
     }
 
     resetNoiseSuppression();
@@ -207,7 +209,6 @@ function leaveVoice() {
     }
     Object.values(peers).forEach(pc => pc.close());
     peers = {};
-    currentVoiceChannel = null;
 
     document.getElementById('voiceBar').classList.add('hidden');
     document.getElementById('voiceParticipants').innerHTML = '';
