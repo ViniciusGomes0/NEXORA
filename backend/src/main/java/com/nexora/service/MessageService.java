@@ -6,6 +6,7 @@ import com.nexora.model.Message;
 import com.nexora.model.User;
 import com.nexora.repository.ChannelRepository;
 import com.nexora.repository.MessageRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,25 @@ public class MessageService {
 
     public Message sendMessage(Long channelId, String content, String imageUrl, User author) {
         return sendMessage(channelId, content, imageUrl, null, author);
+    }
+
+    @Transactional
+    public MessageDTO sendMessageDTO(Long channelId, String content, String imageUrl, Long replyToMessageId, User author) {
+        Channel channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
+        Message replyTo = null;
+        if (replyToMessageId != null) {
+            replyTo = messageRepository.findById(replyToMessageId).orElse(null);
+        }
+        Message msg = Message.builder()
+                .content(content != null ? content : "")
+                .imageUrl(imageUrl)
+                .author(author)
+                .channel(channel)
+                .replyToMessage(replyTo)
+                .build();
+        Message saved = messageRepository.save(msg);
+        return toDTO(saved);
     }
 
     public Message sendMessage(Long channelId, String content, String imageUrl, Long replyToMessageId, User author) {

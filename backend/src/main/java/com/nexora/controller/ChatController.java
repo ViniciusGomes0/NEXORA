@@ -1,7 +1,6 @@
 package com.nexora.controller;
 
 import com.nexora.dto.MessageDTO;
-import com.nexora.model.Message;
 import com.nexora.model.User;
 import com.nexora.service.MessageService;
 import com.nexora.service.UserService;
@@ -39,8 +38,7 @@ public class ChatController {
                                @Payload IncomingMessage incoming,
                                Principal principal) {
         User user = userService.findByDisplayName(principal.getName());
-        Message saved = messageService.sendMessage(channelId, incoming.getContent(), null, incoming.getReplyToMessageId(), user);
-        MessageDTO dto = messageService.toDTO(saved);
+        MessageDTO dto = messageService.sendMessageDTO(channelId, incoming.getContent(), null, incoming.getReplyToMessageId(), user);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
     }
 
@@ -53,8 +51,7 @@ public class ChatController {
             String mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
             String base64 = Base64.getEncoder().encodeToString(file.getBytes());
             String imageUrl = "data:" + mime + ";base64," + base64;
-            Message saved = messageService.sendMessage(channelId, "", imageUrl, user);
-            MessageDTO dto = messageService.toDTO(saved);
+            MessageDTO dto = messageService.sendMessageDTO(channelId, "", imageUrl, null, user);
             messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
