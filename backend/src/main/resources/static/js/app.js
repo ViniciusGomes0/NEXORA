@@ -4,59 +4,93 @@ let currentChannel = null;
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
 
+const MOBILE_PANELS = ['serverNav', 'channelSidebar', 'mainContent', 'membersSidebar'];
+
 function showMobilePanel(panel) {
     if (!isMobile()) return;
-    const allPanels = ['serverNav', 'channelSidebar', 'mainContent', 'membersSidebar'];
+
     const visible = {
         canais:  ['serverNav', 'channelSidebar'],
         chat:    ['mainContent'],
         membros: ['membersSidebar']
     }[panel] || ['mainContent'];
 
-    allPanels.forEach(id => {
+    MOBILE_PANELS.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        if (visible.includes(id)) el.classList.remove('mobile-hidden');
-        else el.classList.add('mobile-hidden');
+        if (visible.includes(id)) {
+            el.classList.remove('mobile-hidden');
+        } else {
+            el.classList.add('mobile-hidden');
+        }
     });
 
+    // Update active tab indicator
     document.querySelectorAll('.mob-tab').forEach(t => t.classList.remove('active'));
     const tabIds = { canais: 'mobTabCanais', chat: 'mobTabChat', membros: 'mobTabMembros' };
     const tabEl = document.getElementById(tabIds[panel]);
     if (tabEl) tabEl.classList.add('active');
+
+    // When switching to chat, scroll messages to bottom
+    if (panel === 'chat') {
+        requestAnimationFrame(scrollToBottom);
+    }
 }
 
-// Sync mobile voice bar with main voice bar state
+// Sync mobile voice bar state from the desktop voice bar
 function syncMobileVoiceBar() {
     const voiceBar = document.getElementById('voiceBar');
     const mobileVoiceBar = document.getElementById('mobileVoiceBar');
     if (!mobileVoiceBar) return;
-    if (voiceBar && !voiceBar.classList.contains('hidden')) {
+
+    const connected = voiceBar && !voiceBar.classList.contains('hidden');
+    if (connected) {
         mobileVoiceBar.classList.remove('hidden');
-        const channelNameEl = document.getElementById('voiceBarChannelName');
-        const mobChannelName = document.getElementById('mobVoiceChannelName');
-        if (channelNameEl && mobChannelName) mobChannelName.textContent = channelNameEl.textContent;
-        // sync mic state
-        const micBtn = document.getElementById('micBtn');
-        const mobMicBtn = document.getElementById('mobMicBtn');
-        if (micBtn && mobMicBtn) mobMicBtn.className = micBtn.className.replace('ctrl-btn', 'mob-vb-btn');
+        // sync channel name
+        const nameEl = document.getElementById('voiceBarChannelName');
+        const mobName = document.getElementById('mobVoiceChannelName');
+        if (nameEl && mobName) mobName.textContent = nameEl.textContent;
+        // sync mic muted state
+        const micBtn  = document.getElementById('micBtn');
+        const mobMic  = document.getElementById('mobMicBtn');
+        if (micBtn && mobMic) {
+            mobMic.classList.toggle('muted', micBtn.classList.contains('muted'));
+        }
         // sync deafen state
         const deafBtn = document.getElementById('deafBtn');
-        const mobDeafBtn = document.getElementById('mobDeafBtn');
-        if (deafBtn && mobDeafBtn) mobDeafBtn.className = deafBtn.className.replace('ctrl-btn', 'mob-vb-btn');
+        const mobDeaf = document.getElementById('mobDeafBtn');
+        if (deafBtn && mobDeaf) {
+            mobDeaf.classList.toggle('muted', deafBtn.classList.contains('muted'));
+        }
     } else {
         mobileVoiceBar.classList.add('hidden');
     }
 }
 
+// Restore all panels when resizing to desktop
 window.addEventListener('resize', () => {
     if (!isMobile()) {
-        ['serverNav', 'channelSidebar', 'mainContent', 'membersSidebar'].forEach(id => {
+        document.body.style.height = '';
+        MOBILE_PANELS.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.remove('mobile-hidden');
         });
     }
 });
+
+// Handle iOS virtual keyboard: resize body to visual viewport height
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+        if (isMobile()) {
+            document.body.style.height = window.visualViewport.height + 'px';
+        }
+    });
+    window.visualViewport.addEventListener('scroll', () => {
+        if (isMobile()) {
+            document.body.style.height = window.visualViewport.height + 'px';
+        }
+    });
+}
 
 // Auth guard
 if (!getToken()) {
@@ -83,18 +117,23 @@ function syncHomeSidebarProfile() {
     await loadServers();
     connectWebSocket();
 
-    // Mobile: init panel and observe voice bar changes
+    // Mobile: init panels and set up observers
     if (isMobile()) {
+        // Pre-remove 'hidden' from membersSidebar so the Membros tab works at any time
+        document.getElementById('membersSidebar').classList.remove('hidden');
         showMobilePanel('canais');
-        const voiceBarEl = document.getElementById('voiceBar');
-        if (voiceBarEl) {
-            new MutationObserver(syncMobileVoiceBar).observe(voiceBarEl, { attributes: true, attributeFilter: ['class'] });
-        }
-        // Also observe mic/deafen buttons for state sync
-        const micBtnEl = document.getElementById('micBtn');
-        const deafBtnEl = document.getElementById('deafBtn');
-        if (micBtnEl) new MutationObserver(syncMobileVoiceBar).observe(micBtnEl, { attributes: true, attributeFilter: ['class'] });
-        if (deafBtnEl) new MutationObserver(syncMobileVoiceBar).observe(deafBtnEl, { attributes: true, attributeFilter: ['class'] });
+
+        // Watch voiceBar, micBtn, deafBtn for state sync into mobile voice bar
+        const observe = (id) => {
+            const el = document.getElementById(id);
+            if (el) new MutationObserver(syncMobileVoiceBar).observe(el, { attributes: true, attributeFilter: ['class'] });
+        };
+        observe('voiceBar');
+        observe('micBtn');
+        observe('deafBtn');
+        // observe channel name text for sync
+        const nameEl = document.getElementById('voiceBarChannelName');
+        if (nameEl) new MutationObserver(syncMobileVoiceBar).observe(nameEl, { childList: true, characterData: true, subtree: true });
     }
 
     // Atualiza membros a cada 30s
@@ -488,11 +527,12 @@ async function saveServerSettings() {
     currentServer = res;
     document.getElementById('currentServerName').textContent = res.name;
 
+    const finalIconUrl = pendingServerIconUrl || res.iconUrl || '';
     const navBtn = document.querySelector(`[data-server-id="${res.id}"]`);
     if (navBtn) {
         navBtn.title = res.name;
-        if (res.iconUrl) {
-            navBtn.style.backgroundImage = `url('${res.iconUrl}')`;
+        if (finalIconUrl) {
+            navBtn.style.backgroundImage = `url('${finalIconUrl}')`;
             navBtn.style.backgroundSize = 'cover';
             navBtn.style.backgroundPosition = 'center';
             const span = navBtn.querySelector('.server-icon-text');

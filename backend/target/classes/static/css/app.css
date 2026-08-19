@@ -1204,135 +1204,100 @@ body {
    MOBILE RESPONSIVE  (≤ 768px)
    ═══════════════════════════════════════════ */
 
-/* Bottom nav — hidden on desktop */
+/* Mobile-only elements: hidden on desktop */
 #mobileBottomNav { display: none; }
+#mobileBackBtn   { display: none; }
+#mobileVoiceBar  { display: none; }
 
 @media (max-width: 768px) {
 
-    /* ── Layout base ── */
+    /* ── Body becomes a full-height flex COLUMN ──
+       Panels are flex items; only one group visible at a time.
+       100dvh accounts for iOS keyboard (Safari 15.4+);
+       100vh is the fallback for older browsers.           */
     body {
+        flex-direction: column !important;
+        height: 100vh;
+        height: 100dvh;
         overflow: hidden;
-        position: fixed;
-        inset: 0;
+        width: 100%;
     }
 
-    /* All panels become fixed full-screen layers */
+    /* ── All four panels: take full width, no float/absolute ── */
     #serverNav,
     #channelSidebar,
     #mainContent,
     #membersSidebar {
-        position: fixed !important;
-        z-index: 50;
-        width: 100vw !important;
-        left: 0 !important;
-        right: 0 !important;
+        width: 100% !important;
+        flex-shrink: 0;
+        position: static !important; /* cancel any desktop positioning */
     }
 
-    /* "Canais" panel: server strip (top 64px) + channel list (rest) */
+    /* ── "Canais" panel — server strip ── */
     #serverNav {
-        top: 0;
-        height: 64px !important;
+        height: 64px;
+        max-height: 64px;
         flex-direction: row !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
-        padding: 8px 12px !important;
+        padding: 8px 10px !important;
+        gap: 8px !important;
+        border-right: none;
         border-bottom: 1px solid var(--border);
-        border-right: none !important;
         scrollbar-width: none;
         align-items: center;
-        gap: 10px !important;
     }
 
+    /* ── "Canais" panel — channel list ── */
     #channelSidebar {
-        top: 64px !important;
-        bottom: 60px !important;
-        height: calc(100vh - 124px) !important;
-        border-right: none !important;
+        flex: 1 !important;
+        min-height: 0;           /* allows flex child to shrink & scroll */
+        overflow-y: auto;
+        border-right: none;
+    }
+
+    /* ── "Chat" panel ── */
+    #mainContent {
+        flex: 1 !important;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* chatView must fill mainContent and allow messageList to scroll */
+    #chatView {
+        flex: 1 !important;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message-list {
+        flex: 1 !important;
+        min-height: 0;
         overflow-y: auto;
     }
 
-    /* "Chat" panel */
-    #mainContent {
-        top: 0 !important;
-        bottom: 60px !important;
-        height: calc(100vh - 60px) !important;
-    }
-
-    /* "Membros" panel */
+    /* ── "Membros" panel ── */
     #membersSidebar {
-        top: 0 !important;
-        bottom: 60px !important;
-        height: calc(100vh - 60px) !important;
-        width: 100% !important;
-        padding-top: 0 !important;
+        flex: 1 !important;
+        min-height: 0;
+        overflow-y: auto;
+        padding-top: 0;
     }
 
-    /* mobile-hidden: hides a panel on mobile */
-    .mobile-hidden { display: none !important; }
-
-    /* ── Mobile voice bar (inside chat view) ── */
-    #mobileVoiceBar {
-        display: flex;
-        background: #1a2a1a;
-        border-bottom: 1px solid #2a3a2a;
-        padding: 8px 12px;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
-    }
-
-    #mobileVoiceBar.hidden { display: none !important; }
-
-    .mob-vb-dot {
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        background: #4ade80;
-        flex-shrink: 0;
-        box-shadow: 0 0 6px #4ade8099;
-    }
-
-    .mob-vb-status {
-        flex: 1;
-        font-size: 12px;
-        font-weight: 700;
-        color: #4ade80;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .mob-vb-btn {
-        width: 40px; height: 40px;
-        border: none;
-        border-radius: 8px;
-        background: var(--bg-hover);
-        color: var(--text-secondary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        font-size: 18px;
-        flex-shrink: 0;
-        transition: background 0.15s;
-    }
-
-    .mob-vb-btn:hover { background: var(--bg-light); }
-    .mob-vb-btn.muted  { filter: grayscale(1) opacity(0.5); }
-    .mob-vb-leave { color: var(--danger) !important; }
-    .mob-vb-leave:hover { background: rgba(239,68,68,0.18) !important; }
-
-    /* ── Bottom navigation bar ── */
+    /* ── Bottom nav: always at the very bottom, flex-shrink 0 ── */
     #mobileBottomNav {
         display: flex;
-        position: fixed;
-        bottom: 0; left: 0; right: 0;
+        width: 100%;
         height: 60px;
+        flex-shrink: 0;
         background: var(--bg-darkest);
         border-top: 1px solid var(--border);
-        z-index: 200;
+        /* respect iOS home-indicator safe area */
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-sizing: content-box;
+        z-index: 10;
     }
 
     .mob-tab {
@@ -1351,49 +1316,76 @@ body {
         transition: color 0.15s;
         padding: 6px 0;
         -webkit-tap-highlight-color: transparent;
+        user-select: none;
     }
 
-    .mob-tab svg { opacity: 0.6; transition: opacity 0.15s; }
+    .mob-tab svg { opacity: 0.65; transition: opacity 0.15s; }
     .mob-tab.active { color: var(--accent); }
     .mob-tab.active svg { opacity: 1; }
 
-    /* ── Touch-friendly sizes ── */
-    .ctrl-btn { width: 40px; height: 40px; font-size: 18px; }
-    .voice-bar-btn { height: 52px; }
-    .channel-item { padding: 10px 16px; font-size: 15px; min-height: 44px; }
-    .server-icon  { width: 44px; height: 44px; flex-shrink: 0; }
-    .member-item  { min-height: 44px; }
-    .ch-btn       { width: 32px; height: 32px; }
+    /* ── mobile-hidden: removes element from flex flow entirely ── */
+    .mobile-hidden { display: none !important; }
 
-    /* Prevent iOS auto-zoom on input focus */
-    .message-input-area input,
-    .modal-content input,
-    .modal-content select,
-    .profile-input { font-size: 16px !important; }
-
-    /* ── Members sidebar header ── */
-    #membersSidebar .sidebar-header {
-        padding: 16px;
-        font-size: 16px;
+    /* ── Mobile voice bar (in chat panel, above message list) ── */
+    #mobileVoiceBar {
+        display: flex;
+        flex-shrink: 0;
+        background: #1a2a1a;
+        border-bottom: 1px solid #2a3a2a;
+        padding: 8px 12px;
+        align-items: center;
+        gap: 8px;
     }
 
-    /* ── Modals: full-width on mobile ── */
-    .modal {
-        width: 94vw !important;
-        padding: 24px 18px !important;
-        max-height: 90vh;
-        overflow-y: auto;
+    #mobileVoiceBar.hidden { display: none !important; }
+
+    .mob-vb-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #4ade80;
+        flex-shrink: 0;
+        box-shadow: 0 0 6px #4ade8099;
+        animation: pulse-dot 2s ease-in-out infinite;
     }
 
-    /* ── Home view: stack vertically ── */
-    .home-view    { padding: 24px 16px; gap: 28px; justify-content: flex-start; padding-top: 40px; }
-    .home-title   { font-size: 28px; }
-    .home-subtitle { font-size: 14px; }
-    .home-features { flex-direction: column; gap: 10px; }
-    .home-actions  { flex-direction: column; align-items: stretch; gap: 8px; }
-    .home-btn      { justify-content: center; }
+    .mob-vb-status {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 700;
+        color: #4ade80;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        overflow: hidden;
+    }
 
-    /* ── Chat header: back button shown on mobile ── */
+    .mob-vb-status span:last-child {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mob-vb-btn {
+        width: 40px; height: 40px;
+        border: none;
+        border-radius: 8px;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 18px;
+        flex-shrink: 0;
+        transition: background 0.15s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mob-vb-btn.muted { filter: grayscale(1) opacity(0.45); }
+    .mob-vb-leave { color: var(--danger) !important; }
+
+    /* ── Chat header: back button ── */
     #mobileBackBtn {
         display: flex;
         align-items: center;
@@ -1408,16 +1400,58 @@ body {
         -webkit-tap-highlight-color: transparent;
     }
 
-    #mobileBackBtn:hover { background: var(--bg-hover); }
+    /* ── Touch-friendly hit targets (min 44px per Apple HIG) ── */
+    .ctrl-btn     { width: 40px; height: 40px; font-size: 18px; }
+    .voice-bar-btn { height: 52px; }
+    .channel-item { padding: 11px 16px; font-size: 15px; min-height: 44px; }
+    .server-icon  { width: 44px; height: 44px; flex-shrink: 0; }
+    .member-item  { min-height: 44px; }
+    .ch-btn       { width: 32px; height: 32px; }
+    .btn-icon     { width: 40px; height: 40px; }
+    .btn-primary,
+    .btn-secondary { padding: 13px 20px; }
 
-    /* ── Video wrap: smaller on mobile ── */
+    /* Prevent iOS auto-zoom on input focus (requires font-size ≥ 16px) */
+    .message-input-area input,
+    .modal-content input,
+    .modal-content select,
+    .profile-input { font-size: 16px !important; }
+
+    /* ── Message input area ── */
+    .message-input-area {
+        flex-shrink: 0;
+        padding: 10px 12px;
+    }
+
+    .message-input-area input  { padding: 12px 14px; }
+    .message-input-area button { padding: 0 16px; font-size: 20px; min-width: 48px; }
+
+    /* ── Members sidebar ── */
+    #membersSidebar .sidebar-header { padding: 16px; font-size: 16px; }
+
+    /* ── Modals ── */
+    .modal {
+        width: 94vw !important;
+        padding: 24px 18px !important;
+        max-height: 92dvh;
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+
+    /* ── Home view: vertical stack ── */
+    .home-view     { padding: 24px 16px; gap: 24px; justify-content: flex-start; padding-top: 36px; }
+    .home-title    { font-size: 26px; }
+    .home-subtitle { font-size: 14px; }
+    .home-features { flex-direction: column; gap: 10px; }
+    .home-actions  { flex-direction: column; align-items: stretch; gap: 8px; }
+    .home-btn      { justify-content: center; }
+    .feature-card  { padding: 18px 16px; }
+
+    /* ── Voice sidebar ── */
+    .voice-bar-channel { max-width: none; }
+
+    /* ── Screen share / video ── */
     .remote-video-wrap video { width: 100%; height: auto; }
-    .local-video { width: 120px; height: 90px; bottom: 72px; right: 12px; }
+    .local-video { width: 110px; height: 82px; bottom: 72px; right: 10px; }
 
-} /* end @media */
-
-/* Desktop: hide mobile-only elements */
-@media (min-width: 769px) {
-    #mobileBackBtn { display: none !important; }
-    #mobileVoiceBar { display: none !important; }
-}
+} /* end @media (max-width: 768px) */
