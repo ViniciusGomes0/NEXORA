@@ -435,8 +435,11 @@ function showHome() {
 }
 
 // ── Configurações do Servidor ─────────────────────────────────
+let pendingServerIconUrl = null;
+
 function openServerSettings() {
     if (!currentServer) return;
+    pendingServerIconUrl = null;
     document.getElementById('settingsServerName').value = currentServer.name;
     document.getElementById('settingsServerDesc').value = currentServer.description || '';
     document.getElementById('settingsInviteCode').textContent = currentServer.inviteCode;
@@ -449,9 +452,13 @@ function renderSettingsIconPreview(iconUrl, name) {
     const el = document.getElementById('serverIconPreview');
     if (iconUrl) {
         el.style.backgroundImage = `url('${iconUrl}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
         el.textContent = '';
     } else {
         el.style.backgroundImage = '';
+        el.style.backgroundSize = '';
+        el.style.backgroundPosition = '';
         el.textContent = name ? name[0].toUpperCase() : '?';
     }
 }
@@ -460,7 +467,10 @@ function previewServerIcon(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => renderSettingsIconPreview(e.target.result, '');
+    reader.onload = e => {
+        pendingServerIconUrl = e.target.result;
+        renderSettingsIconPreview(e.target.result, '');
+    };
     reader.readAsDataURL(file);
 }
 
@@ -470,10 +480,7 @@ async function saveServerSettings() {
     const desc = document.getElementById('settingsServerDesc').value.trim();
     if (!name) return;
 
-    const preview = document.getElementById('serverIconPreview');
-    const iconUrl = preview.style.backgroundImage
-        ? preview.style.backgroundImage.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '')
-        : (currentServer.iconUrl || '');
+    const iconUrl = pendingServerIconUrl !== null ? pendingServerIconUrl : (currentServer.iconUrl || '');
 
     const res = await apiUpdateServer(currentServer.id, name, desc, iconUrl);
     if (res.error) { showToast(res.error, 'error'); return; }
