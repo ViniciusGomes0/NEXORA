@@ -657,7 +657,7 @@ body {
     left: 16px;
     width: 360px;
     max-height: 420px;
-    background: var(--bg-sidebar);
+    background: var(--bg-medium);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.45);

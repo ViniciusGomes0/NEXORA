@@ -341,9 +341,10 @@ function appendMessage(msg) {
     const isOwn = msg.authorDisplayName === myUsername || msg.authorUsername === myUsername;
 
     // Detecta se o usuário atual foi mencionado
+    const contentLower = (msg.content || '').toLowerCase();
     const isMentionedMe = !isOwn && msg.content && (
-        (myUser.displayName && msg.content.includes('@' + myUser.displayName)) ||
-        (myUser.username && msg.content.includes('@' + myUser.username))
+        (myUser.displayName && contentLower.includes('@' + myUser.displayName.toLowerCase())) ||
+        (myUser.username && contentLower.includes('@' + myUser.username.toLowerCase()))
     );
     if (isMentionedMe) div.classList.add('msg-mentioned');
     const deleteBtn = isOwn
