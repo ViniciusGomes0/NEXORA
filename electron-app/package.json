@@ -1,6 +1,6 @@
 {
   "name": "nexora",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "Nexora Desktop App",
   "main": "main.js",
   "scripts": {
