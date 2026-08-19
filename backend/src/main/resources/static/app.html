@@ -56,13 +56,31 @@
         <!-- Fundo fixo da sidebar -->
         <div class="sidebar-bottom">
             <!-- Preview de tela compartilhada -->
-            <div id="screenShareOverlay" class="screen-share-sidebar hidden">
+            <div id="screenShareOverlay" class="screen-share-sidebar hidden" onclick="openScreenModal()">
                 <div class="screen-share-header">
                     <span>🖥️ Transmissão</span>
-                    <button onclick="stopScreenShare()">✕</button>
+                    <button onclick="event.stopPropagation(); stopScreenShare()">✕</button>
                 </div>
-                <video id="localVideo" autoplay muted playsinline></video>
-                <div id="remoteVideos"></div>
+                <div class="screen-share-preview-wrap">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div id="remoteVideos"></div>
+                    <div class="screen-share-click-hint">Clique para ver em tela cheia</div>
+                </div>
+            </div>
+
+            <!-- Modal fullscreen de transmissão -->
+            <div id="screenModal" class="screen-modal hidden" onclick="closeScreenModal()">
+                <div class="screen-modal-inner" onclick="event.stopPropagation()">
+                    <div class="screen-modal-header">
+                        <span>🖥️ Transmissão ao vivo</span>
+                        <button class="screen-modal-close" onclick="closeScreenModal()">✕</button>
+                    </div>
+                    <div class="screen-modal-main">
+                        <video id="screenModalVideo" autoplay playsinline class="screen-modal-video"></video>
+                        <div class="screen-modal-no-stream hidden" id="screenModalEmpty">Nenhuma transmissão ativa</div>
+                    </div>
+                    <div class="screen-modal-thumbs" id="screenModalThumbs"></div>
+                </div>
             </div>
 
             <!-- Barra de voz conectada -->

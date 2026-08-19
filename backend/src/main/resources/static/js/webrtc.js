@@ -268,6 +268,10 @@ async function toggleScreenShare() {
         localVideo.srcObject = screenStream;
         document.getElementById('screenShareOverlay').classList.remove('hidden');
 
+        // Adiciona miniatura local no modal
+        const me = getUser();
+        addScreenThumb('local', (me.displayName || me.username) + ' (você)', screenStream);
+
         screenStream.getVideoTracks()[0].onended = stopScreenShare;
 
         Object.values(peers).forEach(pc => {
@@ -320,6 +324,8 @@ function stopScreenShare() {
     const btn = document.getElementById('screenShareBtn');
     btn.title = 'Compartilhar Tela';
     btn.classList.remove('screen-active');
+
+    removeScreenThumb('local');
 
     const overlay = document.getElementById('screenShareOverlay');
     // Só esconde o overlay se não há vídeo remoto
@@ -378,6 +384,104 @@ function removeVoiceParticipant(id) {
     if (el) el.remove();
 }
 
+// ── Modal de tela cheia ────────────────────────────────────────
+let screenModalActiveId = null;
+
+function openScreenModal() {
+    const modal = document.getElementById('screenModal');
+    modal.classList.remove('hidden');
+    // Seleciona a primeira thumb disponível se nenhuma estiver ativa
+    if (!screenModalActiveId) {
+        const firstThumb = document.querySelector('.screen-thumb');
+        if (firstThumb) selectScreenThumb(firstThumb.dataset.id);
+    } else {
+        selectScreenThumb(screenModalActiveId);
+    }
+}
+
+function closeScreenModal() {
+    document.getElementById('screenModal').classList.add('hidden');
+    // Pausa o vídeo modal para evitar duplicidade de stream
+    const mv = document.getElementById('screenModalVideo');
+    mv.srcObject = null;
+    screenModalActiveId = null;
+}
+
+function selectScreenThumb(id) {
+    screenModalActiveId = id;
+    const stream = getStreamById(id);
+    const mv = document.getElementById('screenModalVideo');
+    const empty = document.getElementById('screenModalEmpty');
+
+    if (stream) {
+        mv.srcObject = stream;
+        mv.muted = (id === 'local') || isDeafened;
+        mv.classList.remove('hidden');
+        empty.classList.add('hidden');
+    } else {
+        mv.srcObject = null;
+        mv.classList.add('hidden');
+        empty.classList.remove('hidden');
+    }
+
+    document.querySelectorAll('.screen-thumb').forEach(t => {
+        t.classList.toggle('active', t.dataset.id === id);
+    });
+}
+
+function getStreamById(id) {
+    if (id === 'local') return screenStream;
+    const wrap = document.getElementById(`rv-${id}`);
+    if (wrap) return wrap.querySelector('video').srcObject;
+    return null;
+}
+
+function addScreenThumb(id, label, stream) {
+    const thumbsEl = document.getElementById('screenModalThumbs');
+    let thumb = document.getElementById(`sthumb-${id}`);
+    if (!thumb) {
+        thumb = document.createElement('div');
+        thumb.className = 'screen-thumb';
+        thumb.id = `sthumb-${id}`;
+        thumb.dataset.id = id;
+
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsinline = true;
+
+        const lbl = document.createElement('div');
+        lbl.className = 'screen-thumb-label';
+        lbl.textContent = label;
+
+        thumb.appendChild(video);
+        thumb.appendChild(lbl);
+        thumb.addEventListener('click', () => selectScreenThumb(id));
+        thumbsEl.appendChild(thumb);
+    }
+    thumb.querySelector('video').srcObject = stream;
+
+    // Se é o único ou nenhum está ativo, seleciona automaticamente
+    if (!screenModalActiveId) {
+        selectScreenThumb(id);
+    }
+}
+
+function removeScreenThumb(id) {
+    const thumb = document.getElementById(`sthumb-${id}`);
+    if (thumb) thumb.remove();
+    if (screenModalActiveId === id) {
+        screenModalActiveId = null;
+        const next = document.querySelector('.screen-thumb');
+        if (next) selectScreenThumb(next.dataset.id);
+        else {
+            const mv = document.getElementById('screenModalVideo');
+            mv.srcObject = null;
+            document.getElementById('screenModalEmpty').classList.remove('hidden');
+        }
+    }
+}
+
 function addRemoteVideo(stream, userId) {
     if (!stream) return;
 
@@ -410,12 +514,16 @@ function addRemoteVideo(stream, userId) {
         video.autoplay = true;
         video.playsinline = true;
         video.className = 'remote-video';
-        // Áudio da tela também respeita deafen
         video.muted = isDeafened;
         wrap.appendChild(video);
         container.appendChild(wrap);
     }
     wrap.querySelector('video').srcObject = stream;
+
+    // Adiciona miniatura no modal
+    const info = peerInfo[userId] || {};
+    const label = info.displayName || `Usuário ${userId}`;
+    addScreenThumb(userId, label, stream);
 }
 
 // ── WebRTC Signaling ───────────────────────────────────────────
