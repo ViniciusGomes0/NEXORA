@@ -30,6 +30,14 @@ function subscribeToChannel(channelId) {
         const msg = JSON.parse(frame.body);
         appendMessage(msg);
         scrollToBottom();
+
+        const myUsername = getCurrentUsername();
+        const isOwn = msg.authorUsername === myUsername || msg.authorDisplayName === myUsername;
+        if (!isOwn && !document.hasFocus()) {
+            const chName = currentChannel ? currentChannel.name : 'canal';
+            const srvName = currentServer ? currentServer.name : 'Servidor';
+            showMessageNotification(msg, chName, srvName);
+        }
     });
 
     currentChannelDeleteSub = stompClient.subscribe(`/topic/channel/${channelId}/delete`, (frame) => {

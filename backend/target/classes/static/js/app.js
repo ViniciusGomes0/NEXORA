@@ -1,6 +1,8 @@
 let currentServer = null;
 let currentChannel = null;
 const serverIconCache = {};
+let serverMembers = [];
+let mentionSelectedIndex = -1;
 
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
@@ -206,6 +208,9 @@ async function selectServer(server) {
         else voiceDiv.appendChild(item);
     });
 
+    const voiceChannels = channels.filter(ch => ch.type === 'VOICE');
+    subscribeVoiceSidebar(voiceChannels);
+
     if (channels.length > 0 && channels[0].type === 'TEXT') {
         openTextChannel(channels[0]);
     }
@@ -214,6 +219,7 @@ async function selectServer(server) {
 async function openTextChannel(channel) {
     currentChannel = channel;
     document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('voiceView').classList.add('hidden');
     document.getElementById('chatView').classList.remove('hidden');
     document.getElementById('membersSidebar').classList.remove('hidden');
     document.getElementById('channelName').textContent = channel.name;
@@ -235,33 +241,160 @@ async function openTextChannel(channel) {
     if (isMobile()) showMobilePanel('chat');
 }
 
+let replyingTo = null;
+
+function setReplyingTo(msg) {
+    replyingTo = msg;
+    const bar = document.getElementById('replyBar');
+    const label = document.getElementById('replyBarLabel');
+    const preview = document.getElementById('replyBarPreview');
+    if (!bar) return;
+    if (msg) {
+        const name = msg.authorDisplayName || msg.authorUsername || '?';
+        label.innerHTML = `Respondendo para <span class="reply-bar-name">${escapeHtml(name)}</span>`;
+        preview.textContent = msg.content || (msg.imageUrl ? '[imagem]' : '');
+        bar.classList.remove('hidden');
+        document.getElementById('messageInput').focus();
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
+function formatMentions(text) {
+    const myUser = getUser() || {};
+    const myNames = new Set([myUser.displayName, myUser.username].filter(Boolean));
+    // Ordena do maior pro menor para evitar match parcial (ex: "Luanna" antes de "Lua")
+    const memberNames = serverMembers
+        .flatMap(m => [m.displayName, m.username].filter(Boolean))
+        .sort((a, b) => b.length - a.length);
+
+    // Divide no símbolo @ e processa cada pedaço
+    const parts = text.split('@');
+    if (parts.length === 1) return escapeHtml(text);
+
+    let result = escapeHtml(parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+        const seg = parts[i];
+        if (!seg) { result += '@'; continue; }
+
+        // Tenta casar com nome de membro conhecido (do maior pro menor)
+        let matched = false;
+        for (const name of memberNames) {
+            if (seg.startsWith(name)) {
+                const after = seg[name.length];
+                if (after === undefined || /[\s,!?.\n]/.test(after)) {
+                    const isMe = myNames.has(name);
+                    result += `<span class="mention-chip${isMe ? ' mention-chip-me' : ''}">@${escapeHtml(name)}</span>`;
+                    result += escapeHtml(seg.slice(name.length));
+                    matched = true;
+                    break;
+                }
+            }
+        }
+
+        if (!matched) {
+            // @palavra desconhecida: destaca em azul mesmo assim
+            const m = seg.match(/^(\S+)([\s\S]*)$/);
+            if (m) {
+                result += `<span class="mention-chip">@${escapeHtml(m[1])}</span>${escapeHtml(m[2])}`;
+            } else {
+                result += '@' + escapeHtml(seg);
+            }
+        }
+    }
+    return result;
+}
+
 function appendMessage(msg) {
     const list = document.getElementById('messageList');
     const div = document.createElement('div');
     div.className = 'message';
+    div.dataset.msgId = msg.id;
     const name = msg.authorDisplayName || msg.authorUsername || '?';
     const initial = name[0].toUpperCase();
-    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    const rawDate = msg.createdAt && !msg.createdAt.endsWith('Z') ? msg.createdAt + 'Z' : msg.createdAt;
+    const time = new Date(rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
     const avatarHtml = msg.authorAvatarUrl
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
         : `<div class="msg-avatar">${initial}</div>`;
 
-    const textHtml = msg.content ? `<div class="msg-content">${escapeHtml(msg.content)}</div>` : '';
+    const textHtml = msg.content ? `<div class="msg-content">${formatMentions(msg.content)}</div>` : '';
     const imageHtml = msg.imageUrl
         ? `<div class="msg-image-wrap"><img class="msg-image" src="${msg.imageUrl}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
         : '';
 
+    let replyHtml = '';
+    if (msg.replyToMessageId) {
+        const rAuthor = escapeHtml(msg.replyToAuthorName || '?');
+        const rText = msg.replyToContent ? escapeHtml(msg.replyToContent) : (msg.replyToImageUrl ? '[imagem]' : '');
+        replyHtml = `
+            <div class="msg-reply-quote" data-reply-to="${msg.replyToMessageId}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                <span class="msg-reply-author">${rAuthor}</span>
+                <span class="msg-reply-text">${rText}</span>
+            </div>`;
+    }
+
+    const myUser = getUser() || {};
+    const myUsername = myUser.displayName || myUser.username;
+    const isOwn = msg.authorDisplayName === myUsername || msg.authorUsername === myUsername;
+
+    // Detecta se o usuário atual foi mencionado
+    const contentLower = (msg.content || '').toLowerCase();
+    const isMentionedMe = !isOwn && msg.content && (
+        (myUser.displayName && contentLower.includes('@' + myUser.displayName.toLowerCase())) ||
+        (myUser.username && contentLower.includes('@' + myUser.username.toLowerCase()))
+    );
+    if (isMentionedMe) div.classList.add('msg-mentioned');
+    const deleteBtn = isOwn
+        ? `<button class="msg-action-btn msg-delete-btn" title="Excluir mensagem">
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+           </button>`
+        : '';
+
     div.innerHTML = `
-        ${avatarHtml}
-        <div class="msg-body">
-            <div class="msg-header">
-                <span class="msg-author">${escapeHtml(name)}</span>
-                <span class="msg-time">${time}</span>
+        ${replyHtml}
+        <div class="msg-row">
+            ${avatarHtml}
+            <div class="msg-body">
+                <div class="msg-header">
+                    <span class="msg-author">${escapeHtml(name)}</span>
+                    <span class="msg-time">${time}</span>
+                </div>
+                ${textHtml}${imageHtml}
             </div>
-            ${textHtml}${imageHtml}
+            <div class="msg-actions">
+                <button class="msg-action-btn msg-reply-btn" title="Responder">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                </button>
+                ${deleteBtn}
+            </div>
         </div>
     `;
+
+    div.querySelector('.msg-reply-btn').addEventListener('click', () => setReplyingTo(msg));
+    if (isOwn) {
+        div.querySelector('.msg-delete-btn').addEventListener('click', () => deleteMessage(msg.id));
+    }
+    if (msg.authorId) {
+        const clickable = [div.querySelector('.msg-avatar'), div.querySelector('.msg-author')];
+        clickable.forEach(el => { if (el) { el.style.cursor = 'pointer'; el.addEventListener('click', () => openUserProfile(msg.authorId)); } });
+    }
+
+    // click on reply quote scrolls to original message
+    const quote = div.querySelector('.msg-reply-quote');
+    if (quote) {
+        quote.addEventListener('click', () => {
+            const target = list.querySelector(`[data-msg-id="${msg.replyToMessageId}"]`);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('msg-highlight');
+                setTimeout(() => target.classList.remove('msg-highlight'), 1500);
+            }
+        });
+    }
+
     list.appendChild(div);
 }
 
@@ -286,15 +419,30 @@ function scrollToBottom() {
     list.scrollTop = list.scrollHeight;
 }
 
+async function deleteMessage(messageId) {
+    // Remove imediatamente da tela (otimista)
+    removeMessageFromDOM(messageId);
+    const res = await apiDeleteMessage(messageId);
+    // Se der erro, só mostra o toast — não redireciona nem recarrega
+    if (res.error) showToast('Erro ao excluir mensagem', 'error');
+}
+
+function removeMessageFromDOM(messageId) {
+    const el = document.querySelector(`[data-msg-id="${messageId}"]`);
+    if (el) el.remove();
+}
+
 function sendMessage() {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
     if (!content || !currentChannel) return;
-    if (!wsSendMessage(currentChannel.id, content)) {
+    const replyId = replyingTo ? replyingTo.id : null;
+    if (!wsSendMessage(currentChannel.id, content, replyId)) {
         alert('Não conectado ao chat. Aguarde.');
         return;
     }
     input.value = '';
+    setReplyingTo(null);
 }
 
 async function sendImage(event) {
@@ -306,13 +454,134 @@ async function sendImage(event) {
 }
 
 document.getElementById('messageInput').addEventListener('keydown', e => {
+    const popup = document.getElementById('mentionPopup');
+    const isOpen = !popup.classList.contains('hidden');
+
+    if (isOpen) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            mentionSelectedIndex = Math.min(mentionSelectedIndex + 1, popup.querySelectorAll('.mention-item').length - 1);
+            updateMentionSelection();
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            mentionSelectedIndex = Math.max(mentionSelectedIndex - 1, 0);
+            updateMentionSelection();
+            return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            const selected = popup.querySelector('.mention-item.selected') || popup.querySelector('.mention-item');
+            if (selected) insertMention(selected.dataset.name);
+            return;
+        }
+        if (e.key === 'Escape') {
+            closeMentionPopup();
+            return;
+        }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
     }
 });
 
+let typingDebounce = null;
+document.getElementById('messageInput').addEventListener('input', () => {
+    handleMentionInput();
+    if (currentChannel) {
+        wsSendTyping(currentChannel.id);
+        clearTimeout(typingDebounce);
+        typingDebounce = setTimeout(() => {}, 2000);
+    }
+});
+
+document.getElementById('messageInput').addEventListener('blur', () => {
+    setTimeout(closeMentionPopup, 150);
+});
+
+function getMentionQuery() {
+    const input = document.getElementById('messageInput');
+    const val = input.value;
+    const cursor = input.selectionStart;
+    const textBefore = val.slice(0, cursor);
+    const match = textBefore.match(/@(\w*)$/);
+    return match ? match[1] : null;
+}
+
+function handleMentionInput() {
+    const query = getMentionQuery();
+    if (query === null) { closeMentionPopup(); return; }
+    const q = query.toLowerCase();
+    const filtered = serverMembers.filter(m => {
+        const name = (m.displayName || m.username || '').toLowerCase();
+        const tag = (m.username || '').toLowerCase();
+        return name.includes(q) || tag.includes(q);
+    }).slice(0, 8);
+
+    if (filtered.length === 0) { closeMentionPopup(); return; }
+    renderMentionPopup(filtered);
+}
+
+function renderMentionPopup(members) {
+    const popup = document.getElementById('mentionPopup');
+    popup.innerHTML = `<div class="mention-popup-header">Membros — ${currentServer ? currentServer.name : ''}</div>`;
+    mentionSelectedIndex = 0;
+
+    members.forEach((m, i) => {
+        const name = m.displayName || m.username || '?';
+        const tag = m.username || '';
+        const initial = name[0].toUpperCase();
+        const avatarStyle = m.avatarUrl
+            ? `style="background-image:url('${m.avatarUrl}');background-size:cover;background-position:center;"`
+            : '';
+
+        const item = document.createElement('div');
+        item.className = 'mention-item' + (i === 0 ? ' selected' : '');
+        item.dataset.name = name;
+        item.innerHTML = `
+            <div class="mention-avatar" ${avatarStyle}>${m.avatarUrl ? '' : initial}</div>
+            <span class="mention-name">${name}</span>
+            <span class="mention-tag">${tag}</span>
+        `;
+        item.addEventListener('mousedown', e => {
+            e.preventDefault();
+            insertMention(name);
+        });
+        popup.appendChild(item);
+    });
+
+    popup.classList.remove('hidden');
+}
+
+function updateMentionSelection() {
+    const items = document.getElementById('mentionPopup').querySelectorAll('.mention-item');
+    items.forEach((el, i) => el.classList.toggle('selected', i === mentionSelectedIndex));
+    const sel = items[mentionSelectedIndex];
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+
+function insertMention(name) {
+    const input = document.getElementById('messageInput');
+    const val = input.value;
+    const cursor = input.selectionStart;
+    const before = val.slice(0, cursor).replace(/@\w*$/, `@${name} `);
+    const after = val.slice(cursor);
+    input.value = before + after;
+    input.selectionStart = input.selectionEnd = before.length;
+    input.focus();
+    closeMentionPopup();
+}
+
+function closeMentionPopup() {
+    document.getElementById('mentionPopup').classList.add('hidden');
+    mentionSelectedIndex = -1;
+}
+
 function renderMembers(members) {
+    serverMembers = members || [];
     const list = document.getElementById('membersList');
     list.innerHTML = '';
     if (!members || members.length === 0) return;
@@ -339,6 +608,8 @@ function renderMembers(members) {
             </div>
             <div class="member-name">${name}${isMe ? ' <span class="you-tag">você</span>' : ''}</div>
         `;
+        div.style.cursor = 'pointer';
+        div.addEventListener('click', () => openUserProfile(m.id));
         return div;
     }
 
@@ -488,6 +759,7 @@ async function refreshChannels() {
 function showHome() {
     document.getElementById('homeView').classList.remove('hidden');
     document.getElementById('chatView').classList.add('hidden');
+    document.getElementById('voiceView').classList.add('hidden');
     document.getElementById('membersSidebar').classList.add('hidden');
     document.getElementById('channelSidebar').classList.add('home-mode');
     syncHomeSidebarProfile();
@@ -617,6 +889,10 @@ async function submitDeleteServer() {
     await loadServers();
 }
 
+function downloadApp() {
+    window.open('https://github.com/ViniciusGomes0/NEXORA/releases/download/v1.0.3/Nexora.Setup.1.0.3.exe', '_blank');
+}
+
 // Modals
 function openModal(id) {
     document.querySelectorAll('.modal-content').forEach(el => el.classList.add('hidden'));
@@ -692,6 +968,29 @@ function openProfilePanel() {
     }
 
     document.getElementById('profileOverlay').classList.remove('hidden');
+}
+
+async function openUserProfile(userId) {
+    const myId = getUser()?.id;
+    if (String(userId) === String(myId)) { openProfilePanel(); return; }
+    const data = await apiGetUser(userId);
+    if (!data) return;
+    const name = data.displayName || data.username || '?';
+    document.getElementById('userProfileUsername').textContent = name;
+    document.getElementById('userProfileTag').textContent = '#' + (data.tag || data.username);
+    const avatarEl = document.getElementById('userProfileAvatar');
+    if (data.avatarUrl) {
+        avatarEl.style.backgroundImage = `url('${data.avatarUrl}')`;
+        avatarEl.textContent = '';
+    } else {
+        avatarEl.style.backgroundImage = '';
+        avatarEl.textContent = name[0].toUpperCase();
+    }
+    document.getElementById('userProfileOverlay').classList.remove('hidden');
+}
+
+function closeUserProfile() {
+    document.getElementById('userProfileOverlay').classList.add('hidden');
 }
 
 function closeProfileDialog() {
@@ -775,8 +1074,202 @@ function showToast(msg, type = 'success') {
     }, 3000);
 }
 
+function showMessageNotification(msg, channelName, serverName) {
+    const container = document.getElementById('discordNotifContainer');
+    if (!container) return;
+
+    const notif = document.createElement('div');
+    notif.className = 'discord-notif';
+    notif.style.position = 'relative';
+    notif.style.overflow = 'hidden';
+
+    const name = msg.authorDisplayName || msg.authorUsername || '?';
+    const initial = name[0].toUpperCase();
+    const avatarStyle = msg.authorAvatarUrl
+        ? `style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"`
+        : '';
+
+    const preview = msg.content
+        ? escapeHtml(msg.content).slice(0, 80) + (msg.content.length > 80 ? '…' : '')
+        : msg.imageUrl ? '📷 Imagem' : '';
+
+    notif.innerHTML = `
+        <div class="discord-notif-avatar" ${avatarStyle}>${msg.authorAvatarUrl ? '' : initial}</div>
+        <div class="discord-notif-body">
+            <div class="discord-notif-meta">${escapeHtml(serverName)} › #${escapeHtml(channelName)}</div>
+            <div class="discord-notif-author">${escapeHtml(name)}</div>
+            <div class="discord-notif-text">${preview}</div>
+        </div>
+        <div class="discord-notif-progress"></div>
+    `;
+
+    container.appendChild(notif);
+    requestAnimationFrame(() => notif.classList.add('show'));
+
+    const dismiss = () => {
+        notif.classList.add('hide');
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 350);
+    };
+
+    notif.addEventListener('click', dismiss);
+    setTimeout(dismiss, 4300);
+}
+
 function logout() {
     if (localStream) leaveVoice();
     localStorage.clear();
     window.location.href = 'index.html';
 }
+
+// ── Emoji Picker ──────────────────────────────────────────────────────────────
+
+const EMOJI_CATEGORIES = [
+    { id: 'frequent', label: 'Frequentes', icon: '🕐', emojis: [] },
+    { id: 'smileys', label: 'Rostos e Emoções', icon: '😀', emojis: [
+        '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','🫠','😉','😊','😇','🥰','😍','🤩','😘','😗','☺️','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🫗','🤭','🫢','🫣','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😶‍🌫️','😏','😒','🙄','😬','😮‍💨','🤥','🫨','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','😵‍💫','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','☹️','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾'
+    ]},
+    { id: 'people', label: 'Pessoas e Corpo', icon: '👋', emojis: [
+        '👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','🫷','🫸','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👀','👁️','👅','👄','🫦','👶','🧒','👦','👧','🧑','👱','👨','🧔','🧔‍♂️','🧔‍♀️','👨‍🦰','👨‍🦱','👨‍🦳','👨‍🦲','👩','👩‍🦰','🧑‍🦰','👩‍🦱','🧑‍🦱','👩‍🦳','🧑‍🦳','👩‍🦲','🧑‍🦲','👱‍♀️','👱‍♂️','🧓','👴','👵','🙍','🙍‍♂️','🙍‍♀️','🙎','🙎‍♂️','🙎‍♀️','🙅','🙅‍♂️','🙅‍♀️','🙆','🙆‍♂️','🙆‍♀️','💁','💁‍♂️','💁‍♀️','🙋','🙋‍♂️','🙋‍♀️','🧏','🧏‍♂️','🧏‍♀️','🙇','🙇‍♂️','🙇‍♀️','🤦','🤦‍♂️','🤦‍♀️','🤷','🤷‍♂️','🤷‍♀️','👮','👮‍♂️','👮‍♀️','🕵️','🕵️‍♂️','🕵️‍♀️','💂','💂‍♂️','💂‍♀️','🥷','👷','👷‍♂️','👷‍♀️','🫅','🤴','👸','👳','👳‍♂️','👳‍♀️','👲','🧕','🤵','🤵‍♂️','🤵‍♀️','👰','👰‍♂️','👰‍♀️','🤰','🫃','🫄','🤱','👩‍🍼','👨‍🍼','🧑‍🍼','👼','🎅','🤶','🧑‍🎄','🦸','🦸‍♂️','🦸‍♀️','🦹','🦹‍♂️','🦹‍♀️','🧙','🧙‍♂️','🧙‍♀️','🧚','🧚‍♂️','🧚‍♀️','🧛','🧛‍♂️','🧛‍♀️','🧜','🧜‍♂️','🧜‍♀️','🧝','🧝‍♂️','🧝‍♀️','🧞','🧞‍♂️','🧞‍♀️','🧟','🧟‍♂️','🧟‍♀️','🧌','💆','💆‍♂️','💆‍♀️','💇','💇‍♂️','💇‍♀️','🚶','🚶‍♂️','🚶‍♀️','🧍','🧍‍♂️','🧍‍♀️','🧎','🧎‍♂️','🧎‍♀️','🏃','🏃‍♂️','🏃‍♀️','💃','🕺','🕴️','👫','👬','👭','👩‍❤️‍👨','👩‍❤️‍👩','💑','👨‍❤️‍👨','👩‍❤️‍💋‍👨','💏','👩‍❤️‍💋‍👩','👨‍❤️‍💋‍👨','👨‍👩‍👦','👨‍👩‍👧','👨‍👩‍👧‍👦','👨‍👩‍👦‍👦','👨‍👩‍👧‍👧','👨‍👧','👨‍👧‍👦','👨‍👧‍👧','👨‍👦','👨‍👦‍👦','👩‍👧','👩‍👧‍👦','👩‍👧‍👧','👩‍👦','👩‍👦‍👦','🗣️','👤','👥','🫂'
+    ]},
+    { id: 'nature', label: 'Animais e Natureza', icon: '🐶', emojis: [
+        '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁','🐮','🐷','🐽','🐸','🐵','🙈','🙉','🙊','🐒','🐔','🐧','🐦','🐦‍⬛','🐤','🐣','🐥','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪲','🦟','🦗','🪳','🕷️','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🦭','🐊','🐅','🐆','🦓','🦍','🦧','🦣','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐕‍🦺','🐈','🐈‍⬛','🪶','🐓','🦃','🦤','🦚','🦜','🦢','🕊️','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿️','🦔','🐾','🐉','🐲','🌵','🎄','🌲','🌳','🌴','🪵','🌱','🌿','☘️','🍀','🎍','🎋','🍃','🍂','🍁','🪺','🪹','🍄','🐚','🪸','🪨','🌾','💐','🌷','🌹','🥀','🪷','🌺','🌸','🌼','🌻','🌞','🌝','🌛','🌜','🌚','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌙','🌟','⭐','🌠','🌌','☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','💧','💦','🌊','🌀','🌈','☂️','☔','⚡','🌪️','🌫️','🌁'
+    ]},
+    { id: 'food', label: 'Comida e Bebida', icon: '🍔', emojis: [
+        '🍇','🍈','🍉','🍊','🍋','🍌','🍍','🥭','🍎','🍏','🍐','🍑','🍒','🍓','🫐','🥝','🍅','🫒','🥥','🥑','🍆','🥔','🥕','🌽','🌶️','🫑','🥒','🥬','🥦','🧄','🧅','🍄','🥜','🫘','🌰','🍞','🥐','🥖','🫓','🥨','🥯','🥞','🧇','🧀','🍖','🍗','🥩','🥓','🌭','🍔','🍟','🍕','🫔','🌮','🌯','🥙','🧆','🥚','🍳','🥘','🍲','🫕','🥣','🥗','🍿','🧈','🧂','🥫','🍱','🍘','🍙','🍚','🍛','🍜','🍝','🍠','🍢','🍣','🍤','🍥','🥮','🍡','🥟','🥠','🥡','🦀','🦞','🦐','🦑','🦪','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🍼','🥛','☕','🫖','🍵','🍶','🍾','🍷','🍸','🍹','🍺','🍻','🥂','🥃','🫗','🥤','🧋','🧃','🧉','🧊','🥢','🍽️','🍴','🥄','🔪','🫙'
+    ]},
+    { id: 'travel', label: 'Viagem e Lugares', icon: '✈️', emojis: [
+        '🌍','🌎','🌏','🌐','🗺️','🧭','🏔️','⛰️','🌋','🗻','🏕️','🏖️','🏜️','🏝️','🏞️','🏟️','🏛️','🏗️','🧱','🪨','🪵','🛖','🏘️','🏚️','🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','💒','🗼','🗽','⛪','🕌','🛕','🕍','⛩️','🕋','⛲','⛺','🌁','🌃','🏙️','🌄','🌅','🌆','🌇','🌉','♾️','🎠','🎡','🎢','💈','🎪','🚂','🚃','🚄','🚅','🚆','🚇','🚈','🚉','🚊','🚝','🚞','🚋','🚌','🚍','🚎','🚐','🚑','🚒','🚓','🚔','🚕','🚖','🚗','🚘','🚙','🛻','🚚','🚛','🚜','🏎️','🏍️','🛵','🛺','🚲','🛴','🛹','🛼','🚏','🛣️','🛤️','⛽','🚨','🚥','🚦','🛑','🚧','⚓','🛟','⛵','🛶','🚤','🛳️','⛴️','🛥️','🚢','✈️','🛩️','🛫','🛬','🪂','💺','🚁','🚟','🚠','🚡','🛰️','🚀','🛸','🌠','🌌','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌙','🌚','🌛','🌜','☀️','🌝','🌞','⭐','🌟','💫','⚡','☁️','⛅','🌤️','🌈','☂️','☔','❄️','⛄','☃️','💨','💧','💦','🌊'
+    ]},
+    { id: 'activities', label: 'Atividades', icon: '⚽', emojis: [
+        '⚽','🏀','🏈','⚾','🥎','🏐','🏉','🥏','🎾','🪃','🏸','🏒','🏑','🥍','🏓','🏸','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🪂','🏋️','🤼','🤸','⛹️','🤺','🤾','🏊','🏄','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🏵️','🎗️','🎫','🎟️','🎪','🤹','🎭','🎨','🎬','🎤','🎧','🎼','🎵','🎶','🎙️','🎚️','🎛️','📻','🎷','🪗','🎸','🎹','🎺','🎻','🥁','🪘','🎮','🕹️','🎲','🧩','🃏','🀄','🎴','🎯','🎳','🎱'
+    ]},
+    { id: 'objects', label: 'Objetos', icon: '💡', emojis: [
+        '👓','🕶️','🥽','🦺','👔','👕','👖','🧣','🧤','🧥','🧦','👗','👘','🥻','🩱','🩲','🩳','👙','👚','👛','👜','👝','🛍️','🎒','🩴','👞','👟','🥾','🥿','👠','👡','🩰','👢','👑','👒','🎩','🧢','🪖','⛑️','📿','💄','💍','💎','🔇','🔈','🔉','🔊','📢','📣','📯','🔔','🔕','🎵','🎶','📻','🎷','🎸','🎹','🎺','🎻','🪗','🥁','🪘','📱','📲','☎️','📞','📟','📠','🔋','🪫','🔌','💻','🖥️','🖨️','⌨️','🖱️','🖲️','💽','💾','💿','📀','🧮','🎥','🎞️','📽️','🎬','📺','📷','📸','📹','📼','🔍','🔎','💡','🔦','🏮','🪔','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🏷️','💰','🪙','💴','💵','💶','💷','💸','💳','🧾','✉️','📧','📨','📩','📤','📥','📦','📫','📪','📬','📭','📮','🗳️','✏️','✒️','🖋️','🖊️','🖌️','🖍️','📝','💼','📁','📂','🗂️','📅','📆','🗒️','🗓️','📇','📈','📉','📊','📋','📌','📍','📎','🖇️','📏','📐','✂️','🗃️','🗄️','🗑️','🔒','🔓','🔏','🔐','🔑','🗝️','🔨','🪓','⛏️','⚒️','🛠️','🗡️','⚔️','🔫','🪃','🛡️','🔧','🪛','🔩','⚙️','🗜️','⚖️','🦯','🔗','⛓️','🪝','🧲','🪜','⚗️','🪣','🧪','🧫','🧬','🔭','🔬','🕳️','🩺','💊','🩹','🩼','🩻','🩸','🧬','🦠','🧫','🦷','🩻'
+    ]},
+    { id: 'symbols', label: 'Símbolos', icon: '❤️', emojis: [
+        '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','❤️‍🔥','❤️‍🩹','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅','🚹','🚺','🚼','⚧️','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','♾️','💲','💱','™️','©️','®️','〰️','➰','➿','🔚','🔙','🔛','🔝','🔜','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔸','🔹','🔶','🔷','🔳','🔲','▪️','▫️','◾','◽','◼️','◻️','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫','🔈','🔉','🔊','📢','🔔','🔕','🔇'
+    ]},
+    { id: 'flags', label: 'Bandeiras', icon: '🏁', emojis: [
+        '🏁','🚩','🎌','🏴','🏳️','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇦🇨','🇦🇩','🇦🇪','🇦🇫','🇦🇬','🇦🇮','🇦🇱','🇦🇲','🇦🇴','🇦🇶','🇦🇷','🇦🇸','🇦🇹','🇦🇺','🇦🇼','🇦🇽','🇦🇿','🇧🇦','🇧🇧','🇧🇩','🇧🇪','🇧🇫','🇧🇬','🇧🇭','🇧🇮','🇧🇯','🇧🇱','🇧🇲','🇧🇳','🇧🇴','🇧🇶','🇧🇷','🇧🇸','🇧🇹','🇧🇻','🇧🇼','🇧🇾','🇧🇿','🇨🇦','🇨🇨','🇨🇩','🇨🇫','🇨🇬','🇨🇭','🇨🇮','🇨🇰','🇨🇱','🇨🇲','🇨🇳','🇨🇴','🇨🇵','🇨🇷','🇨🇺','🇨🇻','🇨🇼','🇨🇽','🇨🇾','🇨🇿','🇩🇪','🇩🇬','🇩🇯','🇩🇰','🇩🇲','🇩🇴','🇩🇿','🇪🇦','🇪🇨','🇪🇪','🇪🇬','🇪🇭','🇪🇷','🇪🇸','🇪🇹','🇪🇺','🇫🇮','🇫🇯','🇫🇰','🇫🇲','🇫🇴','🇫🇷','🇬🇦','🇬🇧','🇬🇩','🇬🇪','🇬🇫','🇬🇬','🇬🇭','🇬🇮','🇬🇱','🇬🇲','🇬🇳','🇬🇵','🇬🇶','🇬🇷','🇬🇸','🇬🇹','🇬🇺','🇬🇼','🇬🇾','🇭🇰','🇭🇲','🇭🇳','🇭🇷','🇭🇹','🇭🇺','🇮🇨','🇮🇩','🇮🇪','🇮🇱','🇮🇲','🇮🇳','🇮🇴','🇮🇶','🇮🇷','🇮🇸','🇮🇹','🇯🇪','🇯🇲','🇯🇴','🇯🇵','🇰🇪','🇰🇬','🇰🇭','🇰🇮','🇰🇲','🇰🇳','🇰🇵','🇰🇷','🇰🇼','🇰🇾','🇰🇿','🇱🇦','🇱🇧','🇱🇨','🇱🇮','🇱🇰','🇱🇷','🇱🇸','🇱🇹','🇱🇺','🇱🇻','🇱🇾','🇲🇦','🇲🇨','🇲🇩','🇲🇪','🇲🇫','🇲🇬','🇲🇭','🇲🇰','🇲🇱','🇲🇲','🇲🇳','🇲🇴','🇲🇵','🇲🇶','🇲🇷','🇲🇸','🇲🇹','🇲🇺','🇲🇻','🇲🇼','🇲🇽','🇲🇾','🇲🇿','🇳🇦','🇳🇨','🇳🇪','🇳🇫','🇳🇬','🇳🇮','🇳🇱','🇳🇴','🇳🇵','🇳🇷','🇳🇺','🇳🇿','🇴🇲','🇵🇦','🇵🇪','🇵🇫','🇵🇬','🇵🇭','🇵🇰','🇵🇱','🇵🇲','🇵🇳','🇵🇷','🇵🇸','🇵🇹','🇵🇼','🇵🇾','🇶🇦','🇷🇪','🇷🇴','🇷🇸','🇷🇺','🇷🇼','🇸🇦','🇸🇧','🇸🇨','🇸🇩','🇸🇪','🇸🇬','🇸🇭','🇸🇮','🇸🇯','🇸🇰','🇸🇱','🇸🇲','🇸🇳','🇸🇴','🇸🇷','🇸🇸','🇸🇹','🇸🇻','🇸🇽','🇸🇾','🇸🇿','🇹🇦','🇹🇨','🇹🇩','🇹🇫','🇹🇬','🇹🇭','🇹🇯','🇹🇰','🇹🇱','🇹🇲','🇹🇳','🇹🇴','🇹🇷','🇹🇹','🇹🇻','🇹🇼','🇹🇿','🇺🇦','🇺🇬','🇺🇲','🇺🇳','🇺🇸','🇺🇾','🇺🇿','🇻🇦','🇻🇨','🇻🇪','🇻🇬','🇻🇮','🇻🇳','🇻🇺','🇼🇫','🇼🇸','🇽🇰','🇾🇪','🇾🇹','🇿🇦','🇿🇲','🇿🇼'
+    ]}
+];
+
+const FREQUENT_KEY = 'nexora_frequent_emojis';
+let emojiPickerOpen = false;
+
+function getFrequentEmojis() {
+    try { return JSON.parse(localStorage.getItem(FREQUENT_KEY) || '[]'); } catch { return []; }
+}
+
+function addFrequentEmoji(emoji) {
+    let freq = getFrequentEmojis();
+    freq = [emoji, ...freq.filter(e => e !== emoji)].slice(0, 36);
+    localStorage.setItem(FREQUENT_KEY, JSON.stringify(freq));
+}
+
+function buildEmojiPicker() {
+    const categoriesEl = document.getElementById('emojiCategories');
+    const gridEl = document.getElementById('emojiGrid');
+    if (!categoriesEl || !gridEl) return;
+
+    // Update frequent emojis category
+    EMOJI_CATEGORIES[0].emojis = getFrequentEmojis();
+
+    categoriesEl.innerHTML = '';
+    EMOJI_CATEGORIES.forEach((cat, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'emoji-cat-btn' + (i === 0 ? ' active' : '');
+        btn.textContent = cat.icon;
+        btn.title = cat.label;
+        btn.onclick = () => {
+            document.querySelectorAll('.emoji-cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            scrollToCategory(cat.id);
+        };
+        categoriesEl.appendChild(btn);
+    });
+
+    renderEmojiGrid(EMOJI_CATEGORIES);
+}
+
+function renderEmojiGrid(categories) {
+    const gridEl = document.getElementById('emojiGrid');
+    gridEl.innerHTML = '';
+    categories.forEach(cat => {
+        if (!cat.emojis.length) return;
+        const label = document.createElement('div');
+        label.className = 'emoji-cat-label';
+        label.textContent = cat.label;
+        label.dataset.catId = cat.id;
+        gridEl.appendChild(label);
+
+        const row = document.createElement('div');
+        row.className = 'emoji-grid-row';
+        cat.emojis.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.className = 'emoji-btn';
+            btn.textContent = emoji;
+            btn.title = emoji;
+            btn.onclick = () => insertEmoji(emoji);
+            row.appendChild(btn);
+        });
+        gridEl.appendChild(row);
+    });
+}
+
+function scrollToCategory(catId) {
+    const el = document.querySelector(`.emoji-cat-label[data-cat-id="${catId}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function filterEmojis(query) {
+    if (!query.trim()) {
+        renderEmojiGrid(EMOJI_CATEGORIES);
+        return;
+    }
+    const q = query.toLowerCase();
+    const results = [];
+    EMOJI_CATEGORIES.forEach(cat => {
+        cat.emojis.forEach(emoji => {
+            if (emoji.includes(q)) results.push(emoji);
+        });
+    });
+    renderEmojiGrid([{ id: 'search', label: 'Resultados', icon: '🔍', emojis: results }]);
+}
+
+function insertEmoji(emoji) {
+    const input = document.getElementById('messageInput');
+    if (!input) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const val = input.value;
+    input.value = val.slice(0, start) + emoji + val.slice(end);
+    input.selectionStart = input.selectionEnd = start + emoji.length;
+    input.focus();
+    addFrequentEmoji(emoji);
+}
+
+function toggleEmojiPicker(e) {
+    e.stopPropagation();
+    const picker = document.getElementById('emojiPicker');
+    if (!picker) return;
+    emojiPickerOpen = !emojiPickerOpen;
+    if (emojiPickerOpen) {
+        buildEmojiPicker();
+        picker.classList.remove('hidden');
+        document.getElementById('emojiSearch').value = '';
+        document.getElementById('emojiSearch').focus();
+    } else {
+        picker.classList.add('hidden');
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const picker = document.getElementById('emojiPicker');
+    const btn = document.getElementById('emojiPickerToggle');
+    if (picker && !picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        picker.classList.add('hidden');
+        emojiPickerOpen = false;
+    }
+});
