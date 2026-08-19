@@ -176,6 +176,12 @@ function resetNoiseSuppression() {
 }
 
 function leaveVoice() {
+    // Avisa todos os peers que saiu
+    if (currentVoiceChannel) {
+        const me = getUser();
+        sendSignal(currentVoiceChannel, { type: 'leave', from: String(me.id) });
+    }
+
     resetNoiseSuppression();
     stopSpeakingDetection();
     clearSidebarVoiceMembers();
@@ -536,6 +542,7 @@ function subscribeToVoiceSignaling(channelId) {
 
         if (signal.type === 'join') {
             peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+            addVoiceParticipant(signal.displayName || `Usuário ${signal.from}`, false, `vp-${signal.from}`, signal.avatarUrl);
             addSidebarVoiceMember(channelId, signal.displayName || `Usuário ${signal.from}`, `vp-${signal.from}`, signal.avatarUrl);
             const pc = createPeer(signal.from, channelId);
             const offer = await pc.createOffer();
@@ -544,7 +551,12 @@ function subscribeToVoiceSignaling(channelId) {
             const me = getUser();
             sendSignal(channelId, { type: 'offer', sdp: improvedOffer, to: signal.from, from: myId, displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || '' });
         } else if (signal.type === 'offer' && signal.to === myId) {
-            if (signal.displayName) peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+            if (signal.displayName) {
+                peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+                // Mostra o usuário na sidebar imediatamente, antes do WebRTC conectar
+                addVoiceParticipant(signal.displayName, false, `vp-${signal.from}`, signal.avatarUrl || '');
+                addSidebarVoiceMember(channelId, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
+            }
             const pc = createPeer(signal.from, channelId);
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
             const answer = await pc.createAnswer();
@@ -557,6 +569,21 @@ function subscribeToVoiceSignaling(channelId) {
         } else if (signal.type === 'ice' && signal.to === myId) {
             const pc = peers[signal.from];
             if (pc) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        } else if (signal.type === 'leave') {
+            const peerId = signal.from;
+            if (peers[peerId]) { peers[peerId].close(); delete peers[peerId]; }
+            delete peerInfo[peerId];
+            removeVoiceParticipant(`vp-${peerId}`);
+            removeSidebarVoiceMember(`vp-${peerId}`);
+            removeScreenThumb(peerId);
+            // Remove áudio/vídeo remoto
+            const ra = document.getElementById(`ra-${peerId}`);
+            if (ra) ra.remove();
+            const rv = document.getElementById(`rv-${peerId}`);
+            if (rv) rv.remove();
+            if (!document.querySelector('#remoteVideos video')) {
+                if (!isScreenSharing) document.getElementById('screenShareOverlay').classList.add('hidden');
+            }
         }
     });
 }
