@@ -9,10 +9,10 @@ let isNoiseSupprActive = false;
 let currentVoiceChannel = null;
 let audioContext = null;
 let speakingInterval = null;
-let remoteSpeakingContexts = {};
-let remoteSpeakingIntervals = {};
 let presenceInterval = null;
 let voiceSidebarSubs = [];
+let sidebarPresenceTTL = {};
+let sidebarCleanupInterval = null;
 
 // Nós do pipeline de supressão de ruído
 let nsSourceNode = null;
@@ -203,7 +203,6 @@ function leaveVoice() {
 
     resetNoiseSuppression();
     stopSpeakingDetection();
-    Object.keys(remoteSpeakingIntervals).forEach(id => stopRemoteSpeakingDetection(id));
     clearSidebarVoiceMembers();
     peerInfo = {};
 
@@ -276,38 +275,6 @@ function startSpeakingDetection() {
 function stopSpeakingDetection() {
     if (speakingInterval) { clearInterval(speakingInterval); speakingInterval = null; }
     if (audioContext) { audioContext.close(); audioContext = null; }
-}
-
-function startRemoteSpeakingDetection(peerId, stream) {
-    stopRemoteSpeakingDetection(peerId);
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        source.connect(analyser);
-        remoteSpeakingContexts[peerId] = ctx;
-
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        remoteSpeakingIntervals[peerId] = setInterval(() => {
-            analyser.getByteFrequencyData(data);
-            const avg = data.reduce((a, b) => a + b, 0) / data.length;
-            const isSpeaking = avg > 4;
-            const sidebarEl = document.getElementById(`svm-vp-${peerId}`);
-            const callTile = document.getElementById(`ctile-vp-${peerId}`);
-            if (sidebarEl) sidebarEl.classList.toggle('speaking', isSpeaking);
-            if (callTile) callTile.classList.toggle('speaking', isSpeaking);
-        }, 80);
-    } catch (e) {}
-}
-
-function stopRemoteSpeakingDetection(peerId) {
-    if (remoteSpeakingIntervals[peerId]) { clearInterval(remoteSpeakingIntervals[peerId]); delete remoteSpeakingIntervals[peerId]; }
-    if (remoteSpeakingContexts[peerId]) { remoteSpeakingContexts[peerId].close().catch(() => {}); delete remoteSpeakingContexts[peerId]; }
-    const sidebarEl = document.getElementById(`svm-vp-${peerId}`);
-    const callTile = document.getElementById(`ctile-vp-${peerId}`);
-    if (sidebarEl) sidebarEl.classList.remove('speaking');
-    if (callTile) callTile.classList.remove('speaking');
 }
 
 // ── Compartilhamento de tela ───────────────────────────────────
@@ -705,7 +672,6 @@ function addRemoteVideo(stream, userId) {
         }
         audio.srcObject = stream;
         audio.muted = isDeafened;
-        startRemoteSpeakingDetection(userId, stream);
         return;
     }
 
@@ -774,7 +740,6 @@ function subscribeToVoiceSignaling(channelId) {
             const peerId = signal.from;
             if (peers[peerId]) { peers[peerId].close(); delete peers[peerId]; }
             delete peerInfo[peerId];
-            stopRemoteSpeakingDetection(peerId);
             removeVoiceParticipant(`vp-${peerId}`);
             removeSidebarVoiceMember(`vp-${peerId}`);
             removeScreenThumb(peerId);
@@ -786,6 +751,9 @@ function subscribeToVoiceSignaling(channelId) {
             if (!document.querySelector('#remoteVideos video')) {
                 if (!isScreenSharing) document.getElementById('screenShareOverlay').classList.add('hidden');
             }
+        } else if (signal.type === 'ping') {
+            // Alguém quer saber quem está no canal — responde com presença
+            announcePresence(channelId);
         }
     });
 }
@@ -859,6 +827,7 @@ function announcePresence(channelId) {
 function subscribeVoiceSidebar(voiceChannels) {
     voiceSidebarSubs.forEach(sub => { try { sub.unsubscribe(); } catch(e) {} });
     voiceSidebarSubs = [];
+    if (sidebarCleanupInterval) { clearInterval(sidebarCleanupInterval); sidebarCleanupInterval = null; }
 
     if (!stompClient || !stompClient.connected) {
         setTimeout(() => subscribeVoiceSidebar(voiceChannels), 1000);
@@ -871,13 +840,36 @@ function subscribeVoiceSidebar(voiceChannels) {
 
             const signal = JSON.parse(frame.body);
             if (signal.type === 'join') {
+                sidebarPresenceTTL[`vp-${signal.from}`] = Date.now();
                 addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
             } else if (signal.type === 'leave') {
+                delete sidebarPresenceTTL[`vp-${signal.from}`];
                 removeSidebarVoiceMember(`vp-${signal.from}`);
             }
         });
         voiceSidebarSubs.push(sub);
     });
+
+    // Pede que quem está nos canais anuncie presença imediatamente
+    const me = getUser();
+    if (me) {
+        voiceChannels.forEach(ch => {
+            if (currentVoiceChannel !== ch.id) {
+                sendSignal(ch.id, { type: 'ping', from: String(me.id) });
+            }
+        });
+    }
+
+    // Remove da sidebar quem não mandou heartbeat nos últimos 12s
+    sidebarCleanupInterval = setInterval(() => {
+        const now = Date.now();
+        Object.entries(sidebarPresenceTTL).forEach(([memberId, ts]) => {
+            if (now - ts > 12000) {
+                removeSidebarVoiceMember(memberId);
+                delete sidebarPresenceTTL[memberId];
+            }
+        });
+    }, 3000);
 }
 
 function sendSignal(channelId, signal) {
@@ -903,6 +895,65 @@ function addSidebarVoiceMember(channelId, displayName, memberId, avatarUrl = '')
         <span class="vsm-mic" id="vsm-mic-${memberId}">🎙️</span>
     `;
     channelEl.insertAdjacentElement('afterend', div);
+
+    // Clique direito só para membros remotos (não o próprio usuário)
+    if (memberId !== 'vp-local') {
+        div.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showVoiceVolumeMenu(e.clientX, e.clientY, memberId, displayName);
+        });
+    }
+}
+
+function showVoiceVolumeMenu(x, y, memberId, displayName) {
+    closeVoiceVolumeMenu();
+
+    const audio = document.getElementById(`ra-${memberId}`);
+    const currentVol = audio ? Math.round(audio.volume * 200) : 100;
+
+    const menu = document.createElement('div');
+    menu.className = 'voice-user-context-menu';
+    menu.id = 'voiceVolumeContextMenu';
+    menu.innerHTML = `
+        <div class="vucm-label">Volume do usuário</div>
+        <div class="vucm-row">
+            <span class="vucm-icon">🔊</span>
+            <input type="range" id="vucmSlider" min="0" max="200" value="${currentVol}" step="1">
+            <span class="vucm-value" id="vucmValue">${currentVol}%</span>
+        </div>
+    `;
+
+    // Posiciona o menu próximo ao cursor
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    document.body.appendChild(menu);
+
+    // Ajusta para não sair da tela
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+
+    const slider = menu.querySelector('#vucmSlider');
+    const valueLabel = menu.querySelector('#vucmValue');
+
+    // Atualiza o volume em tempo real ao arrastar
+    slider.addEventListener('input', () => {
+        const pct = parseInt(slider.value);
+        valueLabel.textContent = `${pct}%`;
+        const audio = document.getElementById(`ra-${memberId}`);
+        if (audio) audio.volume = Math.min(pct / 100, 2.0);
+    });
+
+    // Fecha ao clicar fora
+    setTimeout(() => {
+        document.addEventListener('click', closeVoiceVolumeMenu, { once: true });
+        document.addEventListener('contextmenu', closeVoiceVolumeMenu, { once: true });
+    }, 0);
+}
+
+function closeVoiceVolumeMenu() {
+    const menu = document.getElementById('voiceVolumeContextMenu');
+    if (menu) menu.remove();
 }
 
 function leaveVoiceCleanup() { peerInfo = {}; }
@@ -914,6 +965,7 @@ function removeSidebarVoiceMember(memberId) {
 
 function clearSidebarVoiceMembers() {
     document.querySelectorAll('.voice-sidebar-member').forEach(el => el.remove());
+    sidebarPresenceTTL = {};
 }
 
 function updateSidebarMicIcon() {
