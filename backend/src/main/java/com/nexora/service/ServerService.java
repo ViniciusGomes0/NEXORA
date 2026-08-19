@@ -92,8 +92,6 @@ public class ServerService {
     public Channel renameChannel(Long channelId, String newName, User user) {
         Channel channel = channelRepository.findById(channelId)
                 .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
-        if (!channel.getServer().getOwner().getId().equals(user.getId()))
-            throw new RuntimeException("Sem permissão");
         channel.setName(newName);
         return channelRepository.save(channel);
     }

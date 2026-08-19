@@ -1736,6 +1736,21 @@ body {
     white-space: nowrap;
 }
 
+.call-tile-mute-badge {
+    position: absolute;
+    bottom: 36px;
+    right: calc(50% - 36px);
+    background: rgba(0,0,0,0.75);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    pointer-events: none;
+}
+
 /* Stage: tela compartilhada em destaque */
 .call-stage {
     flex: 1;

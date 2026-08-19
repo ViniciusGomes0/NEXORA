@@ -381,6 +381,13 @@ function toggleMic() {
     isMuted = !isMuted;
     updateMicState();
     updateSidebarMicIcon();
+    broadcastMuteState();
+}
+
+function broadcastMuteState() {
+    if (!currentVoiceChannel) return;
+    const me = getUser();
+    sendSignal(currentVoiceChannel, { type: 'mute_state', from: String(me.id), muted: isMuted, deafened: isDeafened });
 }
 
 function updateMicState() {
@@ -397,6 +404,7 @@ function updateMicState() {
 
 function toggleDeafen() {
     isDeafened = !isDeafened;
+    broadcastMuteState();
     document.querySelectorAll('.remote-audio').forEach(a => { a.muted = isDeafened; });
     document.querySelectorAll('.remote-video').forEach(v => { v.muted = isDeafened; });
     const btn = document.getElementById('deafBtn');
@@ -714,6 +722,8 @@ function subscribeToVoiceSignaling(channelId) {
             peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
             addVoiceParticipant(signal.displayName || `Usuário ${signal.from}`, false, `vp-${signal.from}`, signal.avatarUrl);
             addSidebarVoiceMember(channelId, signal.displayName || `Usuário ${signal.from}`, `vp-${signal.from}`, signal.avatarUrl);
+            if (signal.muted !== undefined || signal.deafened !== undefined)
+                applyRemoteMuteState(`vp-${signal.from}`, !!signal.muted, !!signal.deafened);
             const pc = createPeer(signal.from, channelId);
             const offer = await pc.createOffer();
             const improvedOffer = { type: offer.type, sdp: preferOpusInSDP(offer.sdp) };
@@ -755,8 +765,10 @@ function subscribeToVoiceSignaling(channelId) {
                 if (!isScreenSharing) document.getElementById('screenShareOverlay').classList.add('hidden');
             }
         } else if (signal.type === 'ping') {
-            // Alguém quer saber quem está no canal — responde com presença
+            // Alguém quer saber quem está no canal — responde com presença + estado de mute
             announcePresence(channelId);
+        } else if (signal.type === 'mute_state') {
+            applyRemoteMuteState(`vp-${signal.from}`, signal.muted, signal.deafened);
         }
     });
 }
@@ -824,7 +836,7 @@ function createPeer(peerId, channelId) {
 
 function announcePresence(channelId) {
     const user = getUser();
-    sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
+    sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '', muted: isMuted, deafened: isDeafened });
 }
 
 function subscribeVoiceSidebar(voiceChannels) {
@@ -989,4 +1001,26 @@ function clearSidebarVoiceMembers() {
 function updateSidebarMicIcon() {
     const micEl = document.getElementById('vsm-mic-vp-local');
     if (micEl) micEl.textContent = isMuted ? '🔇' : '🎙️';
+}
+
+function applyRemoteMuteState(memberId, muted, deafened) {
+    // Ícone na sidebar
+    const micEl = document.getElementById(`vsm-mic-${memberId}`);
+    if (micEl) micEl.textContent = deafened ? '🔕' : (muted ? '🔇' : '🎙️');
+
+    // Badge no tile da call view
+    const tile = document.getElementById(`ctile-${memberId}`);
+    if (tile) {
+        let badge = tile.querySelector('.call-tile-mute-badge');
+        if (deafened || muted) {
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'call-tile-mute-badge';
+                tile.appendChild(badge);
+            }
+            badge.textContent = deafened ? '🔕' : '🔇';
+        } else if (badge) {
+            badge.remove();
+        }
+    }
 }

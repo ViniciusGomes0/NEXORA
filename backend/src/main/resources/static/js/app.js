@@ -686,7 +686,26 @@ async function submitRenameChannel() {
         if (res.error) { showToast(res.error, 'error'); return; }
         closeModal();
         showToast('Canal renomeado com sucesso!', 'success');
-        await refreshChannels();
+
+        // Atualiza apenas o nome na sidebar sem reconectar a call
+        const nameEl = document.querySelector(`[data-channel-id="${channelId}"] .channel-name-text`);
+        if (nameEl) nameEl.textContent = name;
+
+        // Atualiza voice bar se for o canal de voz ativo
+        if (String(currentVoiceChannel) === String(channelId)) {
+            document.getElementById('voiceBarChannelName').textContent = name;
+            const callTitle = document.getElementById('callChannelName');
+            if (callTitle) callTitle.textContent = name;
+        }
+
+        // Atualiza header do chat se for o canal de texto ativo
+        if (currentChannel && String(currentChannel.id) === String(channelId)) {
+            const headerEl = document.getElementById('channelName');
+            if (headerEl) headerEl.textContent = name;
+            const inputEl = document.getElementById('messageInput');
+            if (inputEl) inputEl.placeholder = `Mensagem #${name}`;
+            currentChannel.name = name;
+        }
     } catch (e) {
         showToast('Erro ao renomear canal.', 'error');
     }
@@ -1072,48 +1091,6 @@ function showToast(msg, type = 'success') {
         toast.classList.remove('toast-show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
-}
-
-function showMessageNotification(msg, channelName, serverName) {
-    const container = document.getElementById('discordNotifContainer');
-    if (!container) return;
-
-    const notif = document.createElement('div');
-    notif.className = 'discord-notif';
-    notif.style.position = 'relative';
-    notif.style.overflow = 'hidden';
-
-    const name = msg.authorDisplayName || msg.authorUsername || '?';
-    const initial = name[0].toUpperCase();
-    const avatarStyle = msg.authorAvatarUrl
-        ? `style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"`
-        : '';
-
-    const preview = msg.content
-        ? escapeHtml(msg.content).slice(0, 80) + (msg.content.length > 80 ? '…' : '')
-        : msg.imageUrl ? '📷 Imagem' : '';
-
-    notif.innerHTML = `
-        <div class="discord-notif-avatar" ${avatarStyle}>${msg.authorAvatarUrl ? '' : initial}</div>
-        <div class="discord-notif-body">
-            <div class="discord-notif-meta">${escapeHtml(serverName)} › #${escapeHtml(channelName)}</div>
-            <div class="discord-notif-author">${escapeHtml(name)}</div>
-            <div class="discord-notif-text">${preview}</div>
-        </div>
-        <div class="discord-notif-progress"></div>
-    `;
-
-    container.appendChild(notif);
-    requestAnimationFrame(() => notif.classList.add('show'));
-
-    const dismiss = () => {
-        notif.classList.add('hide');
-        notif.classList.remove('show');
-        setTimeout(() => notif.remove(), 350);
-    };
-
-    notif.addEventListener('click', dismiss);
-    setTimeout(dismiss, 4300);
 }
 
 function logout() {

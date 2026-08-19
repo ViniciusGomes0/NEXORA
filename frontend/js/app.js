@@ -686,7 +686,26 @@ async function submitRenameChannel() {
         if (res.error) { showToast(res.error, 'error'); return; }
         closeModal();
         showToast('Canal renomeado com sucesso!', 'success');
-        await refreshChannels();
+
+        // Atualiza apenas o nome na sidebar sem reconectar a call
+        const nameEl = document.querySelector(`[data-channel-id="${channelId}"] .channel-name-text`);
+        if (nameEl) nameEl.textContent = name;
+
+        // Atualiza voice bar se for o canal de voz ativo
+        if (String(currentVoiceChannel) === String(channelId)) {
+            document.getElementById('voiceBarChannelName').textContent = name;
+            const callTitle = document.getElementById('callChannelName');
+            if (callTitle) callTitle.textContent = name;
+        }
+
+        // Atualiza header do chat se for o canal de texto ativo
+        if (currentChannel && String(currentChannel.id) === String(channelId)) {
+            const headerEl = document.getElementById('channelName');
+            if (headerEl) headerEl.textContent = name;
+            const inputEl = document.getElementById('messageInput');
+            if (inputEl) inputEl.placeholder = `Mensagem #${name}`;
+            currentChannel.name = name;
+        }
     } catch (e) {
         showToast('Erro ao renomear canal.', 'error');
     }
