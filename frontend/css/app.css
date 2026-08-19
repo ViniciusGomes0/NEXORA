@@ -414,7 +414,8 @@ body {
 .reply-bar.hidden { display: none; }
 .reply-bar-info { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .reply-bar-info svg { flex-shrink: 0; color: var(--accent); }
-.reply-bar-info span:first-of-type { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.reply-bar-name { font-weight: 700; color: #f4a032; }
+#replyBarLabel { white-space: nowrap; color: var(--text-secondary); }
 #replyBarPreview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
 .reply-bar-close {
     background: none;

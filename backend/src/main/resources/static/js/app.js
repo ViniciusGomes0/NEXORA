@@ -245,7 +245,7 @@ function setReplyingTo(msg) {
     if (!bar) return;
     if (msg) {
         const name = msg.authorDisplayName || msg.authorUsername || '?';
-        label.textContent = `Respondendo a ${name}`;
+        label.innerHTML = `Respondendo para <span class="reply-bar-name">${escapeHtml(name)}</span>`;
         preview.textContent = msg.content || (msg.imageUrl ? '[imagem]' : '');
         bar.classList.remove('hidden');
         document.getElementById('messageInput').focus();
@@ -296,12 +296,14 @@ function appendMessage(msg) {
                 ${textHtml}${imageHtml}
             </div>
             <div class="msg-actions">
-                <button class="msg-action-btn" title="Responder" onclick="setReplyingTo(${JSON.stringify(msg).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
+                <button class="msg-action-btn msg-reply-btn" title="Responder">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
                 </button>
             </div>
         </div>
     `;
+
+    div.querySelector('.msg-reply-btn').addEventListener('click', () => setReplyingTo(msg));
 
     // click on reply quote scrolls to original message
     const quote = div.querySelector('.msg-reply-quote');
