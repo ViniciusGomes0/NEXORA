@@ -210,6 +210,7 @@ async function selectServer(server) {
 
     const voiceChannels = channels.filter(ch => ch.type === 'VOICE');
     subscribeVoiceSidebar(voiceChannels);
+    subscribeToServer(server.id);
 
     if (channels.length > 0 && channels[0].type === 'TEXT') {
         openTextChannel(channels[0]);

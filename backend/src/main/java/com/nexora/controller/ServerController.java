@@ -10,6 +10,7 @@ import com.nexora.service.ServerService;
 import com.nexora.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +29,7 @@ public class ServerController {
     private final ServerService serverService;
     private final UserService userService;
     private final OnlineStatusService onlineStatusService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private User currentUser(UserDetails ud) {
         return userService.findByDisplayName(ud.getUsername());
@@ -96,6 +98,11 @@ public class ServerController {
                                            @AuthenticationPrincipal UserDetails ud) {
         try {
             Channel ch = serverService.renameChannel(channelId, body.get("name"), currentUser(ud));
+            // Broadcast em tempo real para todos no servidor
+            messagingTemplate.convertAndSend(
+                "/topic/server/" + ch.getServer().getId() + "/channel-renamed",
+                Map.of("channelId", ch.getId(), "name", ch.getName())
+            );
             return ResponseEntity.ok(Map.of("id", ch.getId(), "name", ch.getName(), "type", ch.getType().name()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

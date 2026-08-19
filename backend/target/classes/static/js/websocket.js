@@ -2,6 +2,7 @@ let stompClient = null;
 let currentChannelSub = null;
 let currentChannelDeleteSub = null;
 let currentChannelTypingSub = null;
+let currentServerSub = null;
 
 const typingUsers = new Map(); // username -> timeout id
 
@@ -18,6 +19,35 @@ function connectWebSocket() {
     );
 }
 
+function subscribeToServer(serverId) {
+    if (currentServerSub) { currentServerSub.unsubscribe(); currentServerSub = null; }
+    if (!stompClient || !stompClient.connected) return;
+
+    currentServerSub = stompClient.subscribe(`/topic/server/${serverId}/channel-renamed`, (frame) => {
+        const { channelId, name } = JSON.parse(frame.body);
+
+        // Atualiza nome na sidebar
+        const nameEl = document.querySelector(`[data-channel-id="${channelId}"] .channel-name-text`);
+        if (nameEl) nameEl.textContent = name;
+
+        // Atualiza voice bar se for o canal de voz ativo
+        if (String(currentVoiceChannel) === String(channelId)) {
+            document.getElementById('voiceBarChannelName').textContent = name;
+            const callTitle = document.getElementById('callChannelName');
+            if (callTitle) callTitle.textContent = name;
+        }
+
+        // Atualiza header do chat se for o canal de texto ativo
+        if (currentChannel && String(currentChannel.id) === String(channelId)) {
+            const headerEl = document.getElementById('channelName');
+            if (headerEl) headerEl.textContent = name;
+            const inputEl = document.getElementById('messageInput');
+            if (inputEl) inputEl.placeholder = `Mensagem #${name}`;
+            currentChannel.name = name;
+        }
+    });
+}
+
 function subscribeToChannel(channelId) {
     if (currentChannelSub) currentChannelSub.unsubscribe();
     if (currentChannelDeleteSub) currentChannelDeleteSub.unsubscribe();
@@ -30,14 +60,6 @@ function subscribeToChannel(channelId) {
         const msg = JSON.parse(frame.body);
         appendMessage(msg);
         scrollToBottom();
-
-        const myUsername = getCurrentUsername();
-        const isOwn = msg.authorUsername === myUsername || msg.authorDisplayName === myUsername;
-        if (!isOwn && !document.hasFocus()) {
-            const chName = currentChannel ? currentChannel.name : 'canal';
-            const srvName = currentServer ? currentServer.name : 'Servidor';
-            showMessageNotification(msg, chName, srvName);
-        }
     });
 
     currentChannelDeleteSub = stompClient.subscribe(`/topic/channel/${channelId}/delete`, (frame) => {
