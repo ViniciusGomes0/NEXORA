@@ -254,6 +254,10 @@
                 </div>
                 <button class="reply-bar-close" onclick="setReplyingTo(null)" title="Cancelar">✕</button>
             </div>
+            <div class="message-input-wrap">
+            <!-- Popup de menção @ -->
+            <div id="mentionPopup" class="mention-popup hidden"></div>
+
             <div class="message-input-area">
                 <button class="attach-btn" onclick="document.getElementById('imageFileInput').click()" title="Enviar imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -262,6 +266,7 @@
                 <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
                 <button onclick="sendMessage()">➤</button>
             </div>
+            </div><!-- .message-input-wrap -->
         </div>
 
         <!-- Voice Call View (estilo Discord) -->

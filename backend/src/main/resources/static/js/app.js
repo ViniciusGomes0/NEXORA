@@ -1,6 +1,8 @@
 let currentServer = null;
 let currentChannel = null;
 const serverIconCache = {};
+let serverMembers = [];
+let mentionSelectedIndex = -1;
 
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
@@ -394,13 +396,128 @@ async function sendImage(event) {
 }
 
 document.getElementById('messageInput').addEventListener('keydown', e => {
+    const popup = document.getElementById('mentionPopup');
+    const isOpen = !popup.classList.contains('hidden');
+
+    if (isOpen) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            mentionSelectedIndex = Math.min(mentionSelectedIndex + 1, popup.querySelectorAll('.mention-item').length - 1);
+            updateMentionSelection();
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            mentionSelectedIndex = Math.max(mentionSelectedIndex - 1, 0);
+            updateMentionSelection();
+            return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            const selected = popup.querySelector('.mention-item.selected') || popup.querySelector('.mention-item');
+            if (selected) selected.click();
+            return;
+        }
+        if (e.key === 'Escape') {
+            closeMentionPopup();
+            return;
+        }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
     }
 });
 
+document.getElementById('messageInput').addEventListener('input', () => {
+    handleMentionInput();
+});
+
+document.getElementById('messageInput').addEventListener('blur', () => {
+    setTimeout(closeMentionPopup, 150);
+});
+
+function getMentionQuery() {
+    const input = document.getElementById('messageInput');
+    const val = input.value;
+    const cursor = input.selectionStart;
+    const textBefore = val.slice(0, cursor);
+    const match = textBefore.match(/@(\w*)$/);
+    return match ? match[1] : null;
+}
+
+function handleMentionInput() {
+    const query = getMentionQuery();
+    if (query === null) { closeMentionPopup(); return; }
+    const q = query.toLowerCase();
+    const filtered = serverMembers.filter(m => {
+        const name = (m.displayName || m.username || '').toLowerCase();
+        const tag = (m.username || '').toLowerCase();
+        return name.includes(q) || tag.includes(q);
+    }).slice(0, 8);
+
+    if (filtered.length === 0) { closeMentionPopup(); return; }
+    renderMentionPopup(filtered);
+}
+
+function renderMentionPopup(members) {
+    const popup = document.getElementById('mentionPopup');
+    popup.innerHTML = `<div class="mention-popup-header">Membros — ${currentServer ? currentServer.name : ''}</div>`;
+    mentionSelectedIndex = 0;
+
+    members.forEach((m, i) => {
+        const name = m.displayName || m.username || '?';
+        const tag = m.username || '';
+        const initial = name[0].toUpperCase();
+        const avatarStyle = m.avatarUrl
+            ? `style="background-image:url('${m.avatarUrl}');background-size:cover;background-position:center;"`
+            : '';
+
+        const item = document.createElement('div');
+        item.className = 'mention-item' + (i === 0 ? ' selected' : '');
+        item.dataset.name = name;
+        item.innerHTML = `
+            <div class="mention-avatar" ${avatarStyle}>${m.avatarUrl ? '' : initial}</div>
+            <span class="mention-name">${name}</span>
+            <span class="mention-tag">${tag}</span>
+        `;
+        item.addEventListener('mousedown', e => {
+            e.preventDefault();
+            insertMention(name);
+        });
+        popup.appendChild(item);
+    });
+
+    popup.classList.remove('hidden');
+}
+
+function updateMentionSelection() {
+    const items = document.getElementById('mentionPopup').querySelectorAll('.mention-item');
+    items.forEach((el, i) => el.classList.toggle('selected', i === mentionSelectedIndex));
+    const sel = items[mentionSelectedIndex];
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+
+function insertMention(name) {
+    const input = document.getElementById('messageInput');
+    const val = input.value;
+    const cursor = input.selectionStart;
+    const before = val.slice(0, cursor).replace(/@\w*$/, `@${name} `);
+    const after = val.slice(cursor);
+    input.value = before + after;
+    input.selectionStart = input.selectionEnd = before.length;
+    input.focus();
+    closeMentionPopup();
+}
+
+function closeMentionPopup() {
+    document.getElementById('mentionPopup').classList.add('hidden');
+    mentionSelectedIndex = -1;
+}
+
 function renderMembers(members) {
+    serverMembers = members || [];
     const list = document.getElementById('membersList');
     list.innerHTML = '';
     if (!members || members.length === 0) return;

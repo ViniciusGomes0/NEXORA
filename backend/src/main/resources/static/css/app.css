@@ -469,6 +469,80 @@ body {
     object-fit: contain;
 }
 
+/* ── Popup de menção @ ── */
+.mention-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 16px;
+    right: 16px;
+    background: #111214;
+    border: 1px solid #3a3c41;
+    border-radius: 10px;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+    overflow: hidden;
+    z-index: 500;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.mention-popup.hidden { display: none; }
+
+.mention-popup-header {
+    padding: 8px 14px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2e3035;
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.mention-item:hover,
+.mention-item.selected {
+    background: #404249;
+}
+
+.mention-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.mention-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.mention-tag {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.message-input-wrap {
+    position: relative;
+}
+
 .message-input-area {
     padding: 12px 16px;
     display: flex;
