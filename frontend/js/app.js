@@ -701,6 +701,10 @@ async function submitDeleteServer() {
     await loadServers();
 }
 
+function downloadApp() {
+    window.open('/downloads/Nexora-Setup.exe', '_blank');
+}
+
 // Modals
 function openModal(id) {
     document.querySelectorAll('.modal-content').forEach(el => el.classList.add('hidden'));
