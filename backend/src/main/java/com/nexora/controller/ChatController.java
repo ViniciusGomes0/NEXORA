@@ -68,6 +68,11 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
+    @MessageMapping("/chat/{channelId}/typing")
+    public void handleTyping(@DestinationVariable Long channelId, Principal principal) {
+        messagingTemplate.convertAndSend("/topic/channel/" + channelId + "/typing", principal.getName());
+    }
+
     @Data
     public static class IncomingMessage {
         private String content;

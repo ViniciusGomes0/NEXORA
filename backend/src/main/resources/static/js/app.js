@@ -263,30 +263,45 @@ function setReplyingTo(msg) {
 function formatMentions(text) {
     const myUser = getUser() || {};
     const myNames = new Set([myUser.displayName, myUser.username].filter(Boolean));
-
-    // Ordena por comprimento decrescente para evitar match parcial (ex: "Lua" antes de "Luanna")
-    const allNames = serverMembers
+    // Ordena do maior pro menor para evitar match parcial (ex: "Luanna" antes de "Lua")
+    const memberNames = serverMembers
         .flatMap(m => [m.displayName, m.username].filter(Boolean))
         .sort((a, b) => b.length - a.length);
 
-    // Divide o texto em tokens: @menções conhecidas e o resto
-    // Constrói um regex que captura qualquer @NomeConhecido
-    if (allNames.length === 0) return escapeHtml(text);
+    // Divide no símbolo @ e processa cada pedaço
+    const parts = text.split('@');
+    if (parts.length === 1) return escapeHtml(text);
 
-    const safeNames = allNames.map(n => n.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'));
-    const mentionRegex = new RegExp(`@(${safeNames.join('|')})(?=[\\s,!?.]|$)`, 'g');
+    let result = escapeHtml(parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+        const seg = parts[i];
+        if (!seg) { result += '@'; continue; }
 
-    let result = '';
-    let last = 0;
-    let match;
-    while ((match = mentionRegex.exec(text)) !== null) {
-        result += escapeHtml(text.slice(last, match.index));
-        const name = match[1];
-        const isMe = myNames.has(name);
-        result += `<span class="mention-chip${isMe ? ' mention-chip-me' : ''}">@${escapeHtml(name)}</span>`;
-        last = match.index + match[0].length;
+        // Tenta casar com nome de membro conhecido (do maior pro menor)
+        let matched = false;
+        for (const name of memberNames) {
+            if (seg.startsWith(name)) {
+                const after = seg[name.length];
+                if (after === undefined || /[\s,!?.\n]/.test(after)) {
+                    const isMe = myNames.has(name);
+                    result += `<span class="mention-chip${isMe ? ' mention-chip-me' : ''}">@${escapeHtml(name)}</span>`;
+                    result += escapeHtml(seg.slice(name.length));
+                    matched = true;
+                    break;
+                }
+            }
+        }
+
+        if (!matched) {
+            // @palavra desconhecida: destaca em azul mesmo assim
+            const m = seg.match(/^(\S+)([\s\S]*)$/);
+            if (m) {
+                result += `<span class="mention-chip">@${escapeHtml(m[1])}</span>${escapeHtml(m[2])}`;
+            } else {
+                result += '@' + escapeHtml(seg);
+            }
+        }
     }
-    result += escapeHtml(text.slice(last));
     return result;
 }
 
@@ -468,8 +483,14 @@ document.getElementById('messageInput').addEventListener('keydown', e => {
     }
 });
 
+let typingDebounce = null;
 document.getElementById('messageInput').addEventListener('input', () => {
     handleMentionInput();
+    if (currentChannel) {
+        wsSendTyping(currentChannel.id);
+        clearTimeout(typingDebounce);
+        typingDebounce = setTimeout(() => {}, 2000);
+    }
 });
 
 document.getElementById('messageInput').addEventListener('blur', () => {

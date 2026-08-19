@@ -14,6 +14,7 @@ public class MessageDTO {
     private Long id;
     private String content;
     private String imageUrl;
+    private Long authorId;
     private String authorUsername;
     private String authorDisplayName;
     private String authorAvatarUrl;

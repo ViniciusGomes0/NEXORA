@@ -89,6 +89,7 @@ public class MessageService {
                 .id(msg.getId())
                 .content(msg.getContent())
                 .imageUrl(msg.getImageUrl())
+                .authorId(msg.getAuthor().getId())
                 .authorUsername(msg.getAuthor().getUsername())
                 .authorDisplayName(msg.getAuthor().getDisplayName())
                 .authorAvatarUrl(msg.getAuthor().getAvatarUrl())

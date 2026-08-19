@@ -254,6 +254,7 @@
                 </div>
                 <button class="reply-bar-close" onclick="setReplyingTo(null)" title="Cancelar">✕</button>
             </div>
+            <div id="typingIndicator" class="typing-indicator hidden"></div>
             <div class="message-input-wrap">
             <!-- Popup de menção @ -->
             <div id="mentionPopup" class="mention-popup hidden"></div>
@@ -262,9 +263,20 @@
                 <button class="attach-btn" onclick="document.getElementById('imageFileInput').click()" title="Enviar imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                 </button>
+                <button class="attach-btn emoji-picker-btn" onclick="toggleEmojiPicker(event)" title="Emojis" id="emojiPickerToggle">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
                 <input type="file" id="imageFileInput" accept="image/*" style="display:none" onchange="sendImage(event)">
                 <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
                 <button onclick="sendMessage()">➤</button>
+            </div>
+            <!-- Emoji Picker -->
+            <div id="emojiPicker" class="emoji-picker hidden">
+                <div class="emoji-picker-search">
+                    <input type="text" id="emojiSearch" placeholder="Pesquisar emoji..." oninput="filterEmojis(this.value)">
+                </div>
+                <div class="emoji-picker-categories" id="emojiCategories"></div>
+                <div class="emoji-picker-grid" id="emojiGrid"></div>
             </div>
             </div><!-- .message-input-wrap -->
         </div>
@@ -384,6 +396,25 @@
                 <div class="modal-actions">
                     <button class="btn-secondary" onclick="closeProfileDialog()">Cancelar</button>
                     <button class="btn-primary" onclick="saveProfile()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialog de perfil de outro usuário (somente leitura) -->
+    <div id="userProfileOverlay" class="modal-overlay hidden" onclick="closeUserProfile()">
+        <div class="modal profile-dialog" onclick="event.stopPropagation()">
+            <div class="profile-dialog-banner">
+                <div class="profile-avatar-wrap">
+                    <div class="profile-avatar-large" id="userProfileAvatar"></div>
+                </div>
+            </div>
+            <div class="profile-dialog-body">
+                <div class="profile-username" id="userProfileUsername"></div>
+                <div class="profile-tag" id="userProfileTag"></div>
+                <hr class="profile-divider">
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeUserProfile()">Fechar</button>
                 </div>
             </div>
         </div>

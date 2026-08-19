@@ -23,6 +23,16 @@ public class UserController {
         return ResponseEntity.ok(profileMap(user));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getUser(@PathVariable Long id) {
+        try {
+            User user = userService.findById(id);
+            return ResponseEntity.ok(profileMap(user));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PutMapping("/me")
     public ResponseEntity<?> updateMe(@RequestBody Map<String, String> body,
                                       @AuthenticationPrincipal UserDetails ud) {
