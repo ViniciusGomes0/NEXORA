@@ -263,6 +263,81 @@
                 <button onclick="sendMessage()">➤</button>
             </div>
         </div>
+
+        <!-- Voice Call View (estilo Discord) -->
+        <div id="voiceView" class="voice-view hidden">
+            <div class="call-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="call-header-icon" style="opacity:.7">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+                <span class="call-header-title" id="callVoiceChannelName"></span>
+                <div style="flex:1"></div>
+                <button class="call-hdr-btn" onclick="openModal('inviteCode')" title="Convidar para Voz">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    Convidar
+                </button>
+            </div>
+
+            <div class="call-body" id="callBody">
+                <!-- Stage: visível quando há compartilhamento de tela -->
+                <div id="callStage" class="call-stage hidden">
+                    <div class="call-stage-main">
+                        <video id="callStageVideo" autoplay playsinline class="call-stage-video"></video>
+                        <div class="call-stage-sharer" id="callStageSharer"></div>
+                    </div>
+                </div>
+                <!-- Grade de participantes -->
+                <div id="callGrid" class="call-grid"></div>
+            </div>
+
+            <!-- Miniaturas de telas (aparece quando >1 pessoa transmite) -->
+            <div id="callScreenThumbs" class="call-screen-thumbs hidden"></div>
+
+            <!-- Controles na parte inferior -->
+            <div class="call-controls">
+                <div class="call-ctrl-wrap">
+                    <button class="call-ctrl-btn" id="callMicBtn" onclick="toggleMic()" title="Microfone">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+                    <span class="call-ctrl-label">Mic</span>
+                </div>
+                <div class="call-ctrl-wrap">
+                    <button class="call-ctrl-btn" id="callDeafBtn" onclick="toggleDeafen()" title="Fones">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                        </svg>
+                    </button>
+                    <span class="call-ctrl-label">Fones</span>
+                </div>
+                <div class="call-ctrl-wrap">
+                    <button class="call-ctrl-btn" id="callScreenBtn" onclick="toggleScreenShare()" title="Compartilhar Tela">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="13" rx="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="16" x2="12" y2="21"/>
+                            <polyline points="9 10 12 7 15 10"/>
+                            <line x1="12" y1="7" x2="12" y2="13"/>
+                        </svg>
+                    </button>
+                    <span class="call-ctrl-label">Tela</span>
+                </div>
+                <div class="call-ctrl-wrap">
+                    <button class="call-ctrl-btn call-ctrl-leave" onclick="leaveVoice()" title="Desconectar">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.927.34 1.874.576 2.83.7A2 2 0 0 1 22 16.92V19a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 10a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h2a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L6.68 8.91"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                    </button>
+                    <span class="call-ctrl-label">Sair</span>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Members sidebar -->

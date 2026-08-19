@@ -206,7 +206,6 @@ async function selectServer(server) {
         else voiceDiv.appendChild(item);
     });
 
-    // Inscreve passivamente nos canais de voz para ver quem está na call
     const voiceChannels = channels.filter(ch => ch.type === 'VOICE');
     subscribeVoiceSidebar(voiceChannels);
 
@@ -218,6 +217,7 @@ async function selectServer(server) {
 async function openTextChannel(channel) {
     currentChannel = channel;
     document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('voiceView').classList.add('hidden');
     document.getElementById('chatView').classList.remove('hidden');
     document.getElementById('membersSidebar').classList.remove('hidden');
     document.getElementById('channelName').textContent = channel.name;
@@ -576,6 +576,7 @@ async function refreshChannels() {
 function showHome() {
     document.getElementById('homeView').classList.remove('hidden');
     document.getElementById('chatView').classList.add('hidden');
+    document.getElementById('voiceView').classList.add('hidden');
     document.getElementById('membersSidebar').classList.add('hidden');
     document.getElementById('channelSidebar').classList.add('home-mode');
     syncHomeSidebarProfile();

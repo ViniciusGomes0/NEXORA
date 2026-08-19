@@ -16,6 +16,7 @@ let voiceSidebarSubs = [];
 let nsSourceNode = null;
 let nsDestNode = null;
 let nsProcessedStream = null;
+let callActiveStreamId = null;
 
 const ICE_CONFIG = {
     iceServers: [
@@ -48,16 +49,20 @@ const AUDIO_CONSTRAINTS = {
 };
 
 async function joinVoiceChannel(channelId, channelName) {
-    if (currentVoiceChannel === channelId) return;
+    if (currentVoiceChannel === channelId) {
+        showVoiceView(channelName);
+        return;
+    }
 
     if (currentVoiceChannel !== null) leaveVoice();
 
     currentVoiceChannel = channelId;
 
-    // Mostra a voice bar na sidebar (não esconde o chat)
+    // Mostra a voice bar na sidebar e a view principal de call
     document.getElementById('voiceBarChannelName').textContent = channelName;
     document.getElementById('voiceBar').classList.remove('hidden');
     document.getElementById('voiceParticipants').innerHTML = '';
+    showVoiceView(channelName);
 
     // Marca canal ativo na sidebar
     document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
@@ -217,9 +222,18 @@ function leaveVoice() {
     document.getElementById('screenShareOverlay').classList.add('hidden');
     isScreenSharing = false;
 
+    document.getElementById('callGrid').innerHTML = '';
+    document.getElementById('callScreenThumbs').innerHTML = '';
+    document.getElementById('callScreenThumbs').classList.add('hidden');
+    hideCallStage();
+    hideVoiceView();
+    callActiveStreamId = null;
+
     const btn = document.getElementById('screenShareBtn');
     btn.title = 'Compartilhar Tela';
     btn.classList.remove('screen-active');
+    const callScreenBtn = document.getElementById('callScreenBtn');
+    if (callScreenBtn) callScreenBtn.classList.remove('screen-active');
 
     document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
 }
@@ -237,18 +251,21 @@ function startSpeakingDetection() {
         const data = new Uint8Array(analyser.frequencyBinCount);
 
         speakingInterval = setInterval(() => {
-            // Aura verde fica no membro da sidebar esquerda (debaixo do canal de voz)
             const sidebarEl = document.getElementById('svm-vp-local');
-            if (!sidebarEl) return;
+            const callTile = document.getElementById('ctile-vp-local');
             if (isMuted) {
-                sidebarEl.classList.remove('speaking', 'mic-active');
+                if (sidebarEl) sidebarEl.classList.remove('speaking', 'mic-active');
+                if (callTile) callTile.classList.remove('speaking');
                 return;
             }
             analyser.getByteFrequencyData(data);
             const avg = data.reduce((a, b) => a + b, 0) / data.length;
             const isSpeaking = avg > 4;
-            sidebarEl.classList.toggle('speaking', isSpeaking);
-            sidebarEl.classList.toggle('mic-active', !isSpeaking);
+            if (sidebarEl) {
+                sidebarEl.classList.toggle('speaking', isSpeaking);
+                sidebarEl.classList.toggle('mic-active', !isSpeaking);
+            }
+            if (callTile) callTile.classList.toggle('speaking', isSpeaking);
         }, 80);
     } catch (e) {}
 }
@@ -280,6 +297,8 @@ async function toggleScreenShare() {
         const btn = document.getElementById('screenShareBtn');
         btn.title = 'Parar Transmissão';
         btn.classList.add('screen-active');
+        const callBtn = document.getElementById('callScreenBtn');
+        if (callBtn) { callBtn.title = 'Parar Transmissão'; callBtn.classList.add('screen-active'); }
 
         const localVideo = document.getElementById('localVideo');
         localVideo.srcObject = screenStream;
@@ -341,6 +360,8 @@ function stopScreenShare() {
     const btn = document.getElementById('screenShareBtn');
     btn.title = 'Compartilhar Tela';
     btn.classList.remove('screen-active');
+    const callBtn = document.getElementById('callScreenBtn');
+    if (callBtn) { callBtn.title = 'Compartilhar Tela'; callBtn.classList.remove('screen-active'); }
 
     removeScreenThumb('local');
 
@@ -367,6 +388,8 @@ function updateMicState() {
     btn.classList.toggle('muted', isMuted);
     btn.title = isMuted ? 'Microfone Mutado' : 'Microfone Ativo';
     btn.textContent = isMuted ? '🔇' : '🎙️';
+    const callBtn = document.getElementById('callMicBtn');
+    if (callBtn) callBtn.classList.toggle('muted', isMuted);
 }
 
 function toggleDeafen() {
@@ -376,6 +399,10 @@ function toggleDeafen() {
     const btn = document.getElementById('deafBtn');
     btn.classList.toggle('muted', isDeafened);
     btn.textContent = isDeafened ? '🔕' : '🎧';
+    const callBtn = document.getElementById('callDeafBtn');
+    if (callBtn) callBtn.classList.toggle('muted', isDeafened);
+    const sv = document.getElementById('callStageVideo');
+    if (sv && sv.srcObject) sv.muted = isDeafened;
 }
 
 // ── Participantes (painel de membros na direita) ───────────────
@@ -394,11 +421,133 @@ function addVoiceParticipant(displayName, isLocal = false, id = null, avatarUrl 
         <div class="vp-name">${displayName}${isLocal ? ' (você)' : ''}</div>
     `;
     container.appendChild(div);
+
+    addCallTile(displayName, isLocal, elemId, avatarUrl);
 }
 
 function removeVoiceParticipant(id) {
     const el = document.getElementById(id);
     if (el) el.remove();
+    removeCallTile(id);
+}
+
+// ── Tiles da Call View ─────────────────────────────────────────
+function addCallTile(displayName, isLocal, id, avatarUrl) {
+    const grid = document.getElementById('callGrid');
+    const tileId = `ctile-${id}`;
+    if (document.getElementById(tileId)) return;
+
+    const initial = displayName ? displayName[0].toUpperCase() : '?';
+    const avatarStyle = avatarUrl
+        ? `style="background-image:url('${avatarUrl}');background-size:cover;background-position:center;"`
+        : '';
+
+    const tile = document.createElement('div');
+    tile.className = 'call-tile';
+    tile.id = tileId;
+    tile.innerHTML = `
+        <div class="call-tile-avatar" ${avatarStyle}>${avatarUrl ? '' : initial}</div>
+        <div class="call-tile-name">${displayName}${isLocal ? ' (você)' : ''}</div>
+    `;
+    grid.appendChild(tile);
+    updateCallGridLayout();
+}
+
+function removeCallTile(id) {
+    const tile = document.getElementById(`ctile-${id}`);
+    if (tile) tile.remove();
+    updateCallGridLayout();
+}
+
+function updateCallGridLayout() {
+    const grid = document.getElementById('callGrid');
+    const count = grid.children.length;
+    if (count <= 1)       grid.style.gridTemplateColumns = '1fr';
+    else if (count <= 4)  grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    else if (count <= 9)  grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    else                  grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+}
+
+// ── Controle da Voice View ─────────────────────────────────────
+function showVoiceView(channelName) {
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('chatView').classList.add('hidden');
+    document.getElementById('voiceView').classList.remove('hidden');
+    document.getElementById('membersSidebar').classList.add('hidden');
+    if (channelName) document.getElementById('callVoiceChannelName').textContent = channelName;
+}
+
+function hideVoiceView() {
+    document.getElementById('voiceView').classList.add('hidden');
+    document.getElementById('homeView').classList.remove('hidden');
+}
+
+function showCallStage() {
+    document.getElementById('callStage').classList.remove('hidden');
+    document.getElementById('callBody').classList.add('screen-active');
+}
+
+function hideCallStage() {
+    document.getElementById('callStage').classList.add('hidden');
+    document.getElementById('callBody').classList.remove('screen-active');
+    const v = document.getElementById('callStageVideo');
+    if (v) v.srcObject = null;
+    callActiveStreamId = null;
+}
+
+function selectCallStream(id) {
+    callActiveStreamId = id;
+    const stream = getStreamById(id);
+    const video = document.getElementById('callStageVideo');
+    if (video) {
+        video.srcObject = stream || null;
+        if (stream) video.muted = (id === 'local') || isDeafened;
+    }
+    const lbl = document.getElementById('callStageSharer');
+    if (lbl) {
+        const info = id === 'local'
+            ? { displayName: ((getUser().displayName || getUser().username) + ' (você)') }
+            : (peerInfo[id] || { displayName: `Usuário ${id}` });
+        lbl.textContent = info.displayName;
+    }
+    document.querySelectorAll('#callScreenThumbs .call-cthumb').forEach(t => {
+        t.classList.toggle('active', t.dataset.id === id);
+    });
+}
+
+function addCallScreenThumb(id, label, stream) {
+    const container = document.getElementById('callScreenThumbs');
+    let thumb = document.getElementById(`csthumb-${id}`);
+    if (!thumb) {
+        thumb = document.createElement('div');
+        thumb.className = 'call-cthumb';
+        thumb.id = `csthumb-${id}`;
+        thumb.dataset.id = id;
+        const video = document.createElement('video');
+        video.autoplay = true; video.muted = true; video.playsinline = true;
+        const lbl = document.createElement('div');
+        lbl.className = 'call-cthumb-label';
+        lbl.textContent = label;
+        thumb.appendChild(video);
+        thumb.appendChild(lbl);
+        thumb.addEventListener('click', () => { selectCallStream(id); selectScreenThumb(id); });
+        container.appendChild(thumb);
+    }
+    thumb.querySelector('video').srcObject = stream;
+    // Mostra barra de miniaturas só quando há mais de 1 stream
+    container.classList.toggle('hidden', container.children.length <= 1);
+}
+
+function removeCallScreenThumb(id) {
+    const thumb = document.getElementById(`csthumb-${id}`);
+    if (thumb) thumb.remove();
+    const container = document.getElementById('callScreenThumbs');
+    container.classList.toggle('hidden', container.children.length <= 1);
+    if (callActiveStreamId === id) {
+        const next = container.querySelector('.call-cthumb');
+        if (next) selectCallStream(next.dataset.id);
+        else hideCallStage();
+    }
 }
 
 // ── Modal de tela cheia ────────────────────────────────────────
@@ -473,12 +622,16 @@ function addScreenThumb(id, label, stream) {
 
         thumb.appendChild(video);
         thumb.appendChild(lbl);
-        thumb.addEventListener('click', () => selectScreenThumb(id));
+        thumb.addEventListener('click', () => { selectScreenThumb(id); selectCallStream(id); });
         thumbsEl.appendChild(thumb);
     }
     thumb.querySelector('video').srcObject = stream;
 
-    // Se é o único ou nenhum está ativo, seleciona automaticamente
+    // Call view: mostra o stage e adiciona miniatura
+    showCallStage();
+    addCallScreenThumb(id, label, stream);
+    if (!callActiveStreamId) selectCallStream(id);
+
     if (!screenModalActiveId) {
         selectScreenThumb(id);
     }
@@ -497,6 +650,7 @@ function removeScreenThumb(id) {
             document.getElementById('screenModalEmpty').classList.remove('hidden');
         }
     }
+    removeCallScreenThumb(id);
 }
 
 function addRemoteVideo(stream, userId) {
