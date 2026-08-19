@@ -13,6 +13,7 @@ let presenceInterval = null;
 let voiceSidebarSubs = [];
 let sidebarPresenceTTL = {};
 let sidebarCleanupInterval = null;
+const voiceUserVolumes = {}; // persiste volume por memberId enquanto estiver no canal
 
 // Nós do pipeline de supressão de ruído
 let nsSourceNode = null;
@@ -667,11 +668,13 @@ function addRemoteVideo(stream, userId) {
             audio.autoplay = true;
             audio.className = 'remote-audio';
             audio.id = `ra-${userId}`;
-            audio.volume = 1.0;
             audioContainer.appendChild(audio);
         }
         audio.srcObject = stream;
         audio.muted = isDeafened;
+        // Aplica volume salvo pelo usuário (se houver), caso contrário 100%
+        const savedPct = voiceUserVolumes[userId] ?? 100;
+        audio.volume = savedPct / 100;
         return;
     }
 
@@ -878,6 +881,74 @@ function sendSignal(channelId, signal) {
     }
 }
 
+// ── Context menu de volume — delegação no documento ────────────
+(function initVoiceVolumeContextMenu() {
+    document.addEventListener('contextmenu', (e) => {
+        const member = e.target.closest('.voice-sidebar-member');
+        if (!member) return;
+        const memberId = member.id.replace('svm-', '');
+        if (memberId === 'vp-local') return; // não abre para si mesmo
+        e.preventDefault();
+        const nameEl = member.querySelector('span');
+        const displayName = nameEl ? nameEl.textContent : memberId;
+        showVoiceVolumeMenu(e.clientX, e.clientY, memberId, displayName);
+    });
+})();
+
+function showVoiceVolumeMenu(x, y, memberId, displayName) {
+    closeVoiceVolumeMenu();
+
+    // Lê volume salvo; se nunca foi salvo, usa 100
+    const savedPct = voiceUserVolumes[memberId] ?? 100;
+
+    // Aplica o volume salvo ao elemento de áudio (caso tenha chegado depois do save)
+    const audio = document.getElementById(`ra-${memberId}`);
+    if (audio) audio.volume = savedPct / 100;
+
+    const menu = document.createElement('div');
+    menu.className = 'voice-user-context-menu';
+    menu.id = 'voiceVolumeContextMenu';
+    menu.innerHTML = `
+        <div class="vucm-label">Volume do usuário</div>
+        <div class="vucm-row">
+            <span class="vucm-icon">🔊</span>
+            <input type="range" id="vucmSlider" min="0" max="200" value="${savedPct}" step="1">
+            <span class="vucm-value" id="vucmValue">${savedPct}%</span>
+        </div>
+    `;
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    document.body.appendChild(menu);
+
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+
+    const slider = menu.querySelector('#vucmSlider');
+    const valueLabel = menu.querySelector('#vucmValue');
+
+    slider.addEventListener('input', () => {
+        const pct = parseInt(slider.value);
+        valueLabel.textContent = `${pct}%`;
+        voiceUserVolumes[memberId] = pct; // persiste o valor
+        const audio = document.getElementById(`ra-${memberId}`);
+        if (audio) audio.volume = pct / 100;
+    });
+
+    // Fecha ao clicar fora (ignora cliques dentro do menu)
+    setTimeout(() => {
+        document.addEventListener('click', (ev) => {
+            if (!menu.contains(ev.target)) closeVoiceVolumeMenu();
+        }, { once: true });
+    }, 0);
+}
+
+function closeVoiceVolumeMenu() {
+    const menu = document.getElementById('voiceVolumeContextMenu');
+    if (menu) menu.remove();
+}
+
 // ── Membros na sidebar do canal de voz ─────────────────────────
 function addSidebarVoiceMember(channelId, displayName, memberId, avatarUrl = '') {
     const channelEl = document.querySelector(`[data-channel-id="${channelId}"]`);
@@ -895,65 +966,6 @@ function addSidebarVoiceMember(channelId, displayName, memberId, avatarUrl = '')
         <span class="vsm-mic" id="vsm-mic-${memberId}">🎙️</span>
     `;
     channelEl.insertAdjacentElement('afterend', div);
-
-    // Clique direito só para membros remotos (não o próprio usuário)
-    if (memberId !== 'vp-local') {
-        div.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            showVoiceVolumeMenu(e.clientX, e.clientY, memberId, displayName);
-        });
-    }
-}
-
-function showVoiceVolumeMenu(x, y, memberId, displayName) {
-    closeVoiceVolumeMenu();
-
-    const audio = document.getElementById(`ra-${memberId}`);
-    const currentVol = audio ? Math.round(audio.volume * 200) : 100;
-
-    const menu = document.createElement('div');
-    menu.className = 'voice-user-context-menu';
-    menu.id = 'voiceVolumeContextMenu';
-    menu.innerHTML = `
-        <div class="vucm-label">Volume do usuário</div>
-        <div class="vucm-row">
-            <span class="vucm-icon">🔊</span>
-            <input type="range" id="vucmSlider" min="0" max="200" value="${currentVol}" step="1">
-            <span class="vucm-value" id="vucmValue">${currentVol}%</span>
-        </div>
-    `;
-
-    // Posiciona o menu próximo ao cursor
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
-    document.body.appendChild(menu);
-
-    // Ajusta para não sair da tela
-    const rect = menu.getBoundingClientRect();
-    if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
-    if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
-
-    const slider = menu.querySelector('#vucmSlider');
-    const valueLabel = menu.querySelector('#vucmValue');
-
-    // Atualiza o volume em tempo real ao arrastar
-    slider.addEventListener('input', () => {
-        const pct = parseInt(slider.value);
-        valueLabel.textContent = `${pct}%`;
-        const audio = document.getElementById(`ra-${memberId}`);
-        if (audio) audio.volume = Math.min(pct / 100, 2.0);
-    });
-
-    // Fecha ao clicar fora
-    setTimeout(() => {
-        document.addEventListener('click', closeVoiceVolumeMenu, { once: true });
-        document.addEventListener('contextmenu', closeVoiceVolumeMenu, { once: true });
-    }, 0);
-}
-
-function closeVoiceVolumeMenu() {
-    const menu = document.getElementById('voiceVolumeContextMenu');
-    if (menu) menu.remove();
 }
 
 function leaveVoiceCleanup() { peerInfo = {}; }
