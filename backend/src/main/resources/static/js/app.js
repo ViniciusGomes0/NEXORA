@@ -285,6 +285,14 @@ function appendMessage(msg) {
             </div>`;
     }
 
+    const myUsername = (getUser() || {}).displayName || (getUser() || {}).username;
+    const isOwn = msg.authorDisplayName === myUsername || msg.authorUsername === myUsername;
+    const deleteBtn = isOwn
+        ? `<button class="msg-action-btn msg-delete-btn" title="Excluir mensagem">
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+           </button>`
+        : '';
+
     div.innerHTML = `
         ${replyHtml}
         <div class="msg-row">
@@ -300,11 +308,15 @@ function appendMessage(msg) {
                 <button class="msg-action-btn msg-reply-btn" title="Responder">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
                 </button>
+                ${deleteBtn}
             </div>
         </div>
     `;
 
     div.querySelector('.msg-reply-btn').addEventListener('click', () => setReplyingTo(msg));
+    if (isOwn) {
+        div.querySelector('.msg-delete-btn').addEventListener('click', () => deleteMessage(msg.id));
+    }
 
     // click on reply quote scrolls to original message
     const quote = div.querySelector('.msg-reply-quote');
@@ -341,6 +353,16 @@ function escapeHtml(str) {
 function scrollToBottom() {
     const list = document.getElementById('messageList');
     list.scrollTop = list.scrollHeight;
+}
+
+async function deleteMessage(messageId) {
+    const res = await apiDeleteMessage(messageId);
+    if (res.error) showToast(res.error, 'error');
+}
+
+function removeMessageFromDOM(messageId) {
+    const el = document.querySelector(`[data-msg-id="${messageId}"]`);
+    if (el) el.remove();
 }
 
 function sendMessage() {

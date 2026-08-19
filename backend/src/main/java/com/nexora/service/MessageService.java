@@ -64,6 +64,18 @@ public class MessageService {
         return messageRepository.save(msg);
     }
 
+    @Transactional
+    public Long deleteMessage(Long messageId, User requester) {
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("Mensagem não encontrada"));
+        if (!msg.getAuthor().getId().equals(requester.getId())) {
+            throw new RuntimeException("Sem permissão para excluir esta mensagem");
+        }
+        Long channelId = msg.getChannel().getId();
+        messageRepository.delete(msg);
+        return channelId;
+    }
+
     public List<MessageDTO> getMessages(Long channelId, int page) {
         return messageRepository.findByChannelIdOrderByCreatedAtDesc(channelId, PageRequest.of(page, 50))
                 .stream()

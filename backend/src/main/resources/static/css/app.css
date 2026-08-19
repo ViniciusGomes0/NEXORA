@@ -398,6 +398,7 @@ body {
     transition: background 0.1s, color 0.1s;
 }
 .msg-action-btn:hover { background: var(--bg-medium); color: var(--text-primary); }
+.msg-delete-btn:hover { background: rgba(237,66,69,0.15) !important; color: #ed4245 !important; }
 
 /* Reply bar above input */
 .reply-bar {

@@ -59,6 +59,15 @@ public class ChatController {
         }
     }
 
+    @DeleteMapping("/api/messages/{messageId}")
+    public ResponseEntity<?> deleteMessage(@PathVariable Long messageId,
+                                           @AuthenticationPrincipal UserDetails ud) {
+        User user = userService.findByDisplayName(ud.getUsername());
+        Long channelId = messageService.deleteMessage(messageId, user);
+        messagingTemplate.convertAndSend("/topic/channel/" + channelId + "/delete", messageId);
+        return ResponseEntity.ok().build();
+    }
+
     @Data
     public static class IncomingMessage {
         private String content;
