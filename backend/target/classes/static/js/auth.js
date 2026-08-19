@@ -29,6 +29,14 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data.error || 'Erro ao entrar');
         saveSession(data);
+        if (document.getElementById('rememberMe').checked) {
+            localStorage.setItem('nexora_remember', JSON.stringify({
+                displayName: document.getElementById('loginDisplayName').value,
+                password: document.getElementById('loginPassword').value
+            }));
+        } else {
+            localStorage.removeItem('nexora_remember');
+        }
         window.location.href = 'app.html';
     } catch (err) {
         errEl.textContent = err.message;
@@ -73,3 +81,11 @@ function saveSession(data) {
 // Limpa sessão ao voltar para o login
 localStorage.removeItem('nexora_token');
 localStorage.removeItem('nexora_user');
+
+// Pré-preenche se "Lembrar de mim" estava marcado
+const _saved = JSON.parse(localStorage.getItem('nexora_remember') || 'null');
+if (_saved) {
+    document.getElementById('loginDisplayName').value = _saved.displayName;
+    document.getElementById('loginPassword').value = _saved.password;
+    document.getElementById('rememberMe').checked = true;
+}
