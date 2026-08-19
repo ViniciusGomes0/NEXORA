@@ -6,4 +6,5 @@ import lombok.Data;
 public class ServerRequest {
     private String name;
     private String description;
+    private String iconUrl;
 }

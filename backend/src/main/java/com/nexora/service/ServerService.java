@@ -116,6 +116,8 @@ public class ServerService {
             server.setName(req.getName());
         if (req.getDescription() != null)
             server.setDescription(req.getDescription());
+        if (req.getIconUrl() != null)
+            server.setIconUrl(req.getIconUrl());
         return serverRepository.save(server);
     }
 

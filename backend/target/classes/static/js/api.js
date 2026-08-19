@@ -109,10 +109,10 @@ async function apiDeleteChannel(channelId) {
     return safeJson(res);
 }
 
-async function apiUpdateServer(serverId, name, description, iconUrl) {
+async function apiUpdateServer(serverId, name, description) {
     const res = await apiFetch(`/servers/${serverId}`, {
         method: 'PUT',
-        body: JSON.stringify({ name, description, iconUrl: iconUrl || null })
+        body: JSON.stringify({ name, description })
     });
     if (!res.ok) return { error: `Erro ${res.status}` };
     return safeJson(res);

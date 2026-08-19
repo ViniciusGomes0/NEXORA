@@ -43,14 +43,7 @@ async function loadServers() {
         const btn = document.createElement('div');
         btn.className = 'server-icon';
         btn.title = s.name;
-        if (s.iconUrl) {
-            btn.style.backgroundImage = `url('${s.iconUrl}')`;
-            btn.style.backgroundSize = 'cover';
-            btn.style.backgroundPosition = 'center';
-            btn.innerHTML = `<span class="server-icon-text"></span>`;
-        } else {
-            btn.innerHTML = `<span class="server-icon-text">${s.name[0].toUpperCase()}</span>`;
-        }
+        btn.innerHTML = `<span class="server-icon-text">${s.name[0].toUpperCase()}</span>`;
         btn.onclick = () => selectServer(s);
         btn.dataset.serverId = s.id;
         list.appendChild(btn);
@@ -364,28 +357,7 @@ function openServerSettings() {
     document.getElementById('settingsServerName').value = currentServer.name;
     document.getElementById('settingsServerDesc').value = currentServer.description || '';
     document.getElementById('settingsInviteCode').textContent = currentServer.inviteCode;
-    document.getElementById('serverIconInput').value = '';
-    renderSettingsIconPreview(currentServer.iconUrl || '', currentServer.name);
     openModal('serverSettings');
-}
-
-function renderSettingsIconPreview(iconUrl, name) {
-    const el = document.getElementById('serverIconPreview');
-    if (iconUrl) {
-        el.style.backgroundImage = `url('${iconUrl}')`;
-        el.textContent = '';
-    } else {
-        el.style.backgroundImage = '';
-        el.textContent = name ? name[0].toUpperCase() : '?';
-    }
-}
-
-function previewServerIcon(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => renderSettingsIconPreview(e.target.result, '');
-    reader.readAsDataURL(file);
 }
 
 async function saveServerSettings() {
@@ -394,31 +366,18 @@ async function saveServerSettings() {
     const desc = document.getElementById('settingsServerDesc').value.trim();
     if (!name) return;
 
-    const preview = document.getElementById('serverIconPreview');
-    const iconUrl = preview.style.backgroundImage
-        ? preview.style.backgroundImage.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '')
-        : (currentServer.iconUrl || '');
-
-    const res = await apiUpdateServer(currentServer.id, name, desc, iconUrl);
+    const res = await apiUpdateServer(currentServer.id, name, desc);
     if (res.error) { showToast(res.error, 'error'); return; }
 
     currentServer = res;
     document.getElementById('currentServerName').textContent = res.name;
 
+    // Atualiza ícone na nav
     const navBtn = document.querySelector(`[data-server-id="${res.id}"]`);
     if (navBtn) {
         navBtn.title = res.name;
-        if (res.iconUrl) {
-            navBtn.style.backgroundImage = `url('${res.iconUrl}')`;
-            navBtn.style.backgroundSize = 'cover';
-            navBtn.style.backgroundPosition = 'center';
-            const span = navBtn.querySelector('.server-icon-text');
-            if (span) span.textContent = '';
-        } else {
-            navBtn.style.backgroundImage = '';
-            const span = navBtn.querySelector('.server-icon-text');
-            if (span) span.textContent = res.name[0].toUpperCase();
-        }
+        const span = navBtn.querySelector('.server-icon-text');
+        if (span) span.textContent = res.name[0].toUpperCase();
     }
 
     closeModal();

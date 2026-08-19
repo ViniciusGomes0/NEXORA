@@ -22,7 +22,7 @@ public class Server {
 
     private String description;
 
-    @Column(name = "icon_url")
+    @Column(name = "icon_url", columnDefinition = "TEXT")
     private String iconUrl;
 
     @Column(name = "invite_code", unique = true)

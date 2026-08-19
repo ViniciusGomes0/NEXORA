@@ -160,13 +160,14 @@ public class ServerController {
     }
 
     private Map<String, Object> serverInfo(Server s) {
-        return Map.of(
-            "id", s.getId(),
-            "name", s.getName(),
-            "description", s.getDescription() != null ? s.getDescription() : "",
-            "inviteCode", s.getInviteCode(),
-            "ownerId", s.getOwner().getId(),
-            "memberCount", s.getMembers().size()
-        );
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", s.getId());
+        map.put("name", s.getName());
+        map.put("description", s.getDescription() != null ? s.getDescription() : "");
+        map.put("inviteCode", s.getInviteCode());
+        map.put("ownerId", s.getOwner().getId());
+        map.put("memberCount", s.getMembers().size());
+        map.put("iconUrl", s.getIconUrl() != null ? s.getIconUrl() : "");
+        return map;
     }
 }
