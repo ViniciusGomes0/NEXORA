@@ -89,11 +89,6 @@ async function apiRenameChannel(channelId, name) {
     return safeJson(res);
 }
 
-async function apiGetUser(id) {
-    const res = await apiFetch(`/users/${id}`);
-    return res.ok ? res.json() : null;
-}
-
 async function apiGetMe() {
     const res = await apiFetch('/users/me');
     return res.ok ? res.json() : {};

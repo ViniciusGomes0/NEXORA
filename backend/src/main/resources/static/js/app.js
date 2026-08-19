@@ -1074,6 +1074,48 @@ function showToast(msg, type = 'success') {
     }, 3000);
 }
 
+function showMessageNotification(msg, channelName, serverName) {
+    const container = document.getElementById('discordNotifContainer');
+    if (!container) return;
+
+    const notif = document.createElement('div');
+    notif.className = 'discord-notif';
+    notif.style.position = 'relative';
+    notif.style.overflow = 'hidden';
+
+    const name = msg.authorDisplayName || msg.authorUsername || '?';
+    const initial = name[0].toUpperCase();
+    const avatarStyle = msg.authorAvatarUrl
+        ? `style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"`
+        : '';
+
+    const preview = msg.content
+        ? escapeHtml(msg.content).slice(0, 80) + (msg.content.length > 80 ? '…' : '')
+        : msg.imageUrl ? '📷 Imagem' : '';
+
+    notif.innerHTML = `
+        <div class="discord-notif-avatar" ${avatarStyle}>${msg.authorAvatarUrl ? '' : initial}</div>
+        <div class="discord-notif-body">
+            <div class="discord-notif-meta">${escapeHtml(serverName)} › #${escapeHtml(channelName)}</div>
+            <div class="discord-notif-author">${escapeHtml(name)}</div>
+            <div class="discord-notif-text">${preview}</div>
+        </div>
+        <div class="discord-notif-progress"></div>
+    `;
+
+    container.appendChild(notif);
+    requestAnimationFrame(() => notif.classList.add('show'));
+
+    const dismiss = () => {
+        notif.classList.add('hide');
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 350);
+    };
+
+    notif.addEventListener('click', dismiss);
+    setTimeout(dismiss, 4300);
+}
+
 function logout() {
     if (localStream) leaveVoice();
     localStorage.clear();
@@ -1181,34 +1223,16 @@ function scrollToCategory(catId) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-const EMOJI_NAMES = {
-    '😀':'sorrindo feliz','😃':'sorrindo olhos abertos','😄':'gargalhada','😁':'sorriso','😆':'rindo','😅':'suor frio nervoso','🤣':'rolando de rir','😂':'chorando de rir','🙂':'levemente sorrindo','😉':'piscando','😊':'sorriso envergonhado','😇':'anjo inocente','🥰':'apaixonado corações','😍':'apaixonado olhos coração','🤩':'estrelado animado','😘':'beijo','😗':'beijo','😚':'beijo fechado','😙':'beijo sorrindo','😋':'gostoso delicioso','😛':'língua fora','😜':'piscando língua','🤪':'louco maluco','😝':'língua fechada','🤑':'dinheiro rico','🤗':'abraço','🤭':'ops segredo','🤫':'silêncio shh','🤔':'pensativo','🤐':'boca fechada','🤨':'desconfiado','😐':'neutro','😑':'sem expressão','😶':'sem boca','😏':'irônico malicioso','😒':'insatisfeito','🙄':'olhos virando','😬':'sorriso forçado','🤥':'mentiroso','😌':'aliviado','😔':'pensativo triste','😪':'sonolento','🤤':'babando','😴':'dormindo','😷':'máscara doente','🤒':'termômetro doente','🤕':'curativo machucado','🤢':'enjoado náusea','🤮':'vomitando','🤧':'espirrando resfriado','🥵':'calor quente','🥶':'frio gelado','🥴':'tonto bêbado','😵':'tonto zonzo','🤯':'cabeça explodindo','🤠':'cowboy chapéu','🥳':'festa comemorando','😎':'legal óculos','🤓':'nerd óculos','🧐','curioso monóculo','😕':'confuso','😟':'preocupado','🙁':'triste','☹️':'muito triste','😮':'surpreso','😯':'surpreso calado','😲':'chocado','😳':'envergonhado','🥺':'suplica olhos','😦':'com medo','😧':'angustiado','😨':'assustado','😰':'ansioso suor','😥':'aliviado triste','😢':'chorando','😭':'chorando muito','😱':'gritando medo','😖':'frustrado','😣':'perseverante','😞':'decepcionado','😓':'suor baixo cabeça','😩':'cansado','😫':'cansado exausto','🥱':'bocejando','😤':'bufando','😡':'irritado com raiva','😠':'bravo','🤬':'palavrão xingando','😈':'diabinho mal','👿':'raiva mal','💀':'caveira morte','☠️':'caveira cruzada','💩':'cocô poop','🤡':'palhaço','👹':'ogro monstro','👺':'goblin demônio','👻':'fantasma','👽':'alien extraterrestre','👾':'monstro jogo','🤖':'robô',
-    '👋':'mão acenando oi','🤚':'mão levantada','🖐️':'mão cinco dedos','✋':'mão para','🖖':'saudação vulcano','👌':'ok legal','✌️':'paz vitória','🤞':'dedos cruzados sorte','👍':'joinha positivo','👎':'negativo reprovado','✊':'punho','👊':'soco','👏':'palmas aplausos','🙌':'mãos celebrando','🤝':'aperto de mão','🙏':'por favor obrigado oração','💪':'forte músculo braço','👀':'olhos olhando','👁️':'olho','👅':'língua','👄':'boca lábios',
-    '🐶':'cachorro cão','🐱':'gato','🐭':'rato','🐹':'hamster','🐰':'coelho','🦊':'raposa','🐻':'urso','🐼':'panda','🐨':'coala','🐯':'tigre','🦁':'leão','🐮':'vaca','🐷':'porco','🐸':'sapo','🐵':'macaco','🐔':'galinha frango','🐧':'pinguim','🐦':'pássaro','🦆':'pato','🦅':'águia','🦉':'coruja','🦇':'morcego','🐺':'lobo','🐗':'javali','🐴':'cavalo','🦄':'unicórnio','🐝':'abelha','🐛':'lagarta','🦋':'borboleta','🐌':'caracol','🐞':'joaninha','🐜':'formiga','🦟':'mosquito','🕷️':'aranha','🦂':'escorpião','🐢':'tartaruga','🐍':'cobra serpente','🦎':'lagarto','🐙':'polvo','🦑':'lula','🦐':'camarão','🦀':'caranguejo','🐡':'baiacu peixe','🐠':'peixe tropical','🐟':'peixe','🐬':'golfinho','🐳':'baleia','🐋':'baleia grande','🦈':'tubarão','🐊':'jacaré crocodilo','🐅':'tigre','🐘':'elefante','🦒':'girafa','🐕':'cachorro cão','🐈':'gato','🌵':'cacto','🎄':'árvore natal','🌲':'pinheiro','🌳':'árvore','🌴':'palmeira','🍀':'trevo sorte','🌸':'flor cerejeira','🌺':'hibisco flor','🌻':'girassol','🌹':'rosa flor','🌷':'tulipa flor','🍄':'cogumelo','🌊':'onda mar','🌈':'arco íris','❄️':'neve floco','☃️':'boneco neve','⛄':'boneco neve','🌙':'lua','⭐':'estrela','🌟':'estrela brilhante','☀️':'sol','⚡':'raio trovão','🔥':'fogo chama',
-    '🍇':'uva','🍈':'melão','🍉':'melancia','🍊':'laranja tangerina','🍋':'limão','🍌':'banana','🍍':'abacaxi','🥭':'manga','🍎':'maçã vermelha','🍏':'maçã verde','🍐':'pera','🍑':'pêssego','🍒':'cereja','🍓':'morango','🫐':'mirtilo blueberry','🥝':'kiwi','🍅':'tomate','🥥':'coco','🥑':'abacate','🍆':'berinjela','🥔':'batata','🥕':'cenoura','🌽':'milho','🌶️':'pimenta','🥒':'pepino','🥬':'alface couve','🥦':'brócolis','🧄':'alho','🧅':'cebola','🍞':'pão','🥐':'croissant','🥖':'baguete','🧀':'queijo','🍖':'carne osso','🍗':'frango','🥩':'bife carne','🥓':'bacon','🌭':'cachorro quente','🍔':'hambúrguer','🍟':'batata frita','🍕':'pizza','🌮':'taco','🌯':'wrap','🥚':'ovo','🍳':'ovo frito frigideira','🥘':'ensopado panela','🍲':'panela cozido','🥗':'salada','🍿':'pipoca','🧈':'manteiga','🍱':'marmita bento','🍜':'macarrão ramen','🍝':'espaguete macarrão','🍣':'sushi','🍩':'rosquinha donuts','🍪':'biscoito cookie','🎂':'bolo aniversário','🍰':'fatia bolo','🧁':'cupcake','🍫':'chocolate','🍬':'bala doce','🍭':'pirulito','🍮':'pudim','🍯':'mel','🍼':'mamadeira','🥛':'leite','☕':'café','🍵':'chá','🍺':'cerveja','🍻':'cerveja brinde','🥂':'champanhe','🍷':'vinho','🍸':'coquetel','🍹':'drink tropical','🥤':'refrigerante','🧃':'suco','🧊':'gelo',
-    '🚗':'carro','🚕':'táxi','🚙':'suv carro','🚌':'ônibus','🚎':'van','🚐':'microônibus','🚑':'ambulância','🚒':'bombeiro','🚓':'polícia viatura','🚀':'foguete','✈️':'avião','🚁':'helicóptero','🚢':'navio','⚓':'âncora','🚂':'trem locomotiva','🚲':'bicicleta','🛵':'scooter','🏍️':'moto','🏖️':'praia','🏔️':'montanha','🌋':'vulcão','🏕️':'acampamento barraca','🏠':'casa','🏢':'prédio escritório','🏥':'hospital','🏦':'banco','🏨':'hotel','🏪':'loja','🏫':'escola','🏛️':'museu coliseu','🏟️':'estádio','🗼':'torre eiffel','🗽':'estátua liberdade','⛪':'igreja','🕌':'mesquita','🛕':'templo',
-    '⚽':'bola futebol','🏀':'basquete','🏈':'futebol americano','⚾':'beisebol','🎾':'tênis','🏐':'vôlei','🎱':'sinuca bilhar','🏆':'troféu campeão','🥇':'medalha ouro','🥈':'medalha prata','🥉':'medalha bronze','🎮':'videogame controle','🕹️':'joystick','🎲':'dado','🎯':'alvo dardo','🎳':'boliche','🎨':'arte pintura','🎭':'teatro máscara','🎬':'claquete cinema','🎤':'microfone','🎧':'fone ouvido','🎼':'partitura música','🎵':'nota musical','🎶':'notas musicais','🎷':'saxofone','🎸':'guitarra','🎹':'piano teclado','🎺':'trompete','🎻':'violino',
-    '💡':'lâmpada ideia','🔦':'lanterna','💻':'computador laptop','📱':'celular smartphone','⌨️':'teclado','🖥️':'monitor','🖨️':'impressora','📷':'câmera foto','📸':'câmera flash','🎥':'câmera vídeo','📺':'televisão tv','📻':'rádio','📞':'telefone','☎️':'telefone fixo','🔋':'bateria','🔌':'tomada','💾':'disquete','💿':'cd disco','📀':'dvd','🧮':'calculadora','🔒':'cadeado fechado','🔓':'cadeado aberto','🔑':'chave','🗝️':'chave antiga','🔨':'martelo','⚙️':'engrenagem','🧲':'ímã','⚗️':'frasco química','🔭':'telescópio','🔬':'microscópio','💊':'comprimido remédio','💉':'seringa injeção','🩹':'curativo','🩺':'estetoscópio','📚':'livros','📖':'livro aberto','✏️':'lápis','✒️':'caneta','📝':'bloco notas','📌':'alfinete','📍':'localização','✂️':'tesoura','🖇️':'clipe','📎':'clipe','📏':'régua','📐':'esquadro','🗑️':'lixeira','📦':'caixa pacote','✉️':'carta envelope','📧':'email','📨':'envelope recebido','📤':'saída caixa','📥':'entrada caixa','📅':'calendário','📆':'calendário','📊':'gráfico barras','📈':'gráfico crescendo','📉':'gráfico caindo',
-    '❤️':'coração vermelho amor','🧡':'coração laranja','💛':'coração amarelo','💚':'coração verde','💙':'coração azul','💜':'coração roxo','🖤':'coração preto','🤍':'coração branco','🤎':'coração marrom','💔':'coração partido','💕':'corações','💞':'corações girando','💗':'coração crescendo','💖':'coração brilhante','💘':'coração flecha','💝':'coração laço','✅':'correto certo ok','❌':'errado não','⭕':'círculo','⚠️':'aviso alerta','🔴':'círculo vermelho','🟠':'círculo laranja','🟡':'círculo amarelo','🟢':'círculo verde','🔵':'círculo azul','🟣':'círculo roxo','⚫':'círculo preto','⚪':'círculo branco','♻️':'reciclar','💯':'cem porcento perfeito','🔞':'adulto proibido menor','📵':'sem celular','🚫':'proibido','❓':'interrogação','❗':'exclamação','‼️':'dupla exclamação','💤':'zzz dormindo','🔥':'fogo trending',
-    '🏁':'bandeira largada','🚩':'bandeira vermelha','🎌':'bandeira japão','🏳️':'bandeira branca','🏴':'bandeira preta','🏳️‍🌈':'bandeira lgbt arco íris','🇧🇷':'bandeira brasil'
-};
-
 function filterEmojis(query) {
     if (!query.trim()) {
         renderEmojiGrid(EMOJI_CATEGORIES);
         return;
     }
-    const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const q = query.toLowerCase();
     const results = [];
-    const seen = new Set();
     EMOJI_CATEGORIES.forEach(cat => {
         cat.emojis.forEach(emoji => {
-            if (seen.has(emoji)) return;
-            const name = (EMOJI_NAMES[emoji] || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
-            if (name.includes(q)) {
-                results.push(emoji);
-                seen.add(emoji);
-            }
+            if (emoji.includes(q)) results.push(emoji);
         });
     });
     renderEmojiGrid([{ id: 'search', label: 'Resultados', icon: '🔍', emojis: results }]);
