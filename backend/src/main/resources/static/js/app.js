@@ -260,6 +260,36 @@ function setReplyingTo(msg) {
     }
 }
 
+function formatMentions(text) {
+    const myUser = getUser() || {};
+    const myNames = new Set([myUser.displayName, myUser.username].filter(Boolean));
+
+    // Ordena por comprimento decrescente para evitar match parcial (ex: "Lua" antes de "Luanna")
+    const allNames = serverMembers
+        .flatMap(m => [m.displayName, m.username].filter(Boolean))
+        .sort((a, b) => b.length - a.length);
+
+    // Divide o texto em tokens: @menções conhecidas e o resto
+    // Constrói um regex que captura qualquer @NomeConhecido
+    if (allNames.length === 0) return escapeHtml(text);
+
+    const safeNames = allNames.map(n => n.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'));
+    const mentionRegex = new RegExp(`@(${safeNames.join('|')})(?=[\\s,!?.]|$)`, 'g');
+
+    let result = '';
+    let last = 0;
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+        result += escapeHtml(text.slice(last, match.index));
+        const name = match[1];
+        const isMe = myNames.has(name);
+        result += `<span class="mention-chip${isMe ? ' mention-chip-me' : ''}">@${escapeHtml(name)}</span>`;
+        last = match.index + match[0].length;
+    }
+    result += escapeHtml(text.slice(last));
+    return result;
+}
+
 function appendMessage(msg) {
     const list = document.getElementById('messageList');
     const div = document.createElement('div');
@@ -274,7 +304,7 @@ function appendMessage(msg) {
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
         : `<div class="msg-avatar">${initial}</div>`;
 
-    const textHtml = msg.content ? `<div class="msg-content">${escapeHtml(msg.content)}</div>` : '';
+    const textHtml = msg.content ? `<div class="msg-content">${formatMentions(msg.content)}</div>` : '';
     const imageHtml = msg.imageUrl
         ? `<div class="msg-image-wrap"><img class="msg-image" src="${msg.imageUrl}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
         : '';
@@ -291,8 +321,16 @@ function appendMessage(msg) {
             </div>`;
     }
 
-    const myUsername = (getUser() || {}).displayName || (getUser() || {}).username;
+    const myUser = getUser() || {};
+    const myUsername = myUser.displayName || myUser.username;
     const isOwn = msg.authorDisplayName === myUsername || msg.authorUsername === myUsername;
+
+    // Detecta se o usuário atual foi mencionado
+    const isMentionedMe = !isOwn && msg.content && (
+        (myUser.displayName && msg.content.includes('@' + myUser.displayName)) ||
+        (myUser.username && msg.content.includes('@' + myUser.username))
+    );
+    if (isMentionedMe) div.classList.add('msg-mentioned');
     const deleteBtn = isOwn
         ? `<button class="msg-action-btn msg-delete-btn" title="Excluir mensagem">
                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>

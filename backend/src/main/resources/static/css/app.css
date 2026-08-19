@@ -437,6 +437,35 @@ body {
 }
 .msg-highlight { animation: msg-flash 1.5s ease-out; }
 
+/* ── Menções @ no chat ── */
+.mention-chip {
+    display: inline;
+    color: #c9d1f6;
+    background: rgba(88, 101, 242, 0.18);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-weight: 600;
+    cursor: default;
+    transition: background 0.15s;
+}
+.mention-chip:hover { background: rgba(88, 101, 242, 0.35); }
+
+/* Quando a menção é do próprio usuário: cor mais viva */
+.mention-chip.mention-chip-me {
+    color: #e8eaff;
+    background: rgba(88, 101, 242, 0.32);
+}
+.mention-chip.mention-chip-me:hover { background: rgba(88, 101, 242, 0.48); }
+
+/* Highlight na linha da mensagem quando você é mencionado */
+.message.msg-mentioned {
+    background: rgba(250, 168, 26, 0.06);
+    border-left: 3px solid #f0b132;
+    padding-left: 9px;
+    margin-left: -12px;
+    border-radius: 0 4px 4px 0;
+}
+
 .msg-avatar {
     width: 40px;
     height: 40px;
