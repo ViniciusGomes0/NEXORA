@@ -235,13 +235,33 @@ async function openTextChannel(channel) {
     if (isMobile()) showMobilePanel('chat');
 }
 
+let replyingTo = null;
+
+function setReplyingTo(msg) {
+    replyingTo = msg;
+    const bar = document.getElementById('replyBar');
+    const label = document.getElementById('replyBarLabel');
+    const preview = document.getElementById('replyBarPreview');
+    if (!bar) return;
+    if (msg) {
+        const name = msg.authorDisplayName || msg.authorUsername || '?';
+        label.textContent = `Respondendo a ${name}`;
+        preview.textContent = msg.content || (msg.imageUrl ? '[imagem]' : '');
+        bar.classList.remove('hidden');
+        document.getElementById('messageInput').focus();
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
 function appendMessage(msg) {
     const list = document.getElementById('messageList');
     const div = document.createElement('div');
     div.className = 'message';
+    div.dataset.msgId = msg.id;
     const name = msg.authorDisplayName || msg.authorUsername || '?';
     const initial = name[0].toUpperCase();
-    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
     const avatarHtml = msg.authorAvatarUrl
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
@@ -252,16 +272,50 @@ function appendMessage(msg) {
         ? `<div class="msg-image-wrap"><img class="msg-image" src="${msg.imageUrl}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
         : '';
 
+    let replyHtml = '';
+    if (msg.replyToMessageId) {
+        const rAuthor = escapeHtml(msg.replyToAuthorName || '?');
+        const rText = msg.replyToContent ? escapeHtml(msg.replyToContent) : (msg.replyToImageUrl ? '[imagem]' : '');
+        replyHtml = `
+            <div class="msg-reply-quote" data-reply-to="${msg.replyToMessageId}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                <span class="msg-reply-author">${rAuthor}</span>
+                <span class="msg-reply-text">${rText}</span>
+            </div>`;
+    }
+
     div.innerHTML = `
-        ${avatarHtml}
-        <div class="msg-body">
-            <div class="msg-header">
-                <span class="msg-author">${escapeHtml(name)}</span>
-                <span class="msg-time">${time}</span>
+        ${replyHtml}
+        <div class="msg-row">
+            ${avatarHtml}
+            <div class="msg-body">
+                <div class="msg-header">
+                    <span class="msg-author">${escapeHtml(name)}</span>
+                    <span class="msg-time">${time}</span>
+                </div>
+                ${textHtml}${imageHtml}
             </div>
-            ${textHtml}${imageHtml}
+            <div class="msg-actions">
+                <button class="msg-action-btn" title="Responder" onclick="setReplyingTo(${JSON.stringify(msg).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                </button>
+            </div>
         </div>
     `;
+
+    // click on reply quote scrolls to original message
+    const quote = div.querySelector('.msg-reply-quote');
+    if (quote) {
+        quote.addEventListener('click', () => {
+            const target = list.querySelector(`[data-msg-id="${msg.replyToMessageId}"]`);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('msg-highlight');
+                setTimeout(() => target.classList.remove('msg-highlight'), 1500);
+            }
+        });
+    }
+
     list.appendChild(div);
 }
 
@@ -290,11 +344,13 @@ function sendMessage() {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
     if (!content || !currentChannel) return;
-    if (!wsSendMessage(currentChannel.id, content)) {
+    const replyId = replyingTo ? replyingTo.id : null;
+    if (!wsSendMessage(currentChannel.id, content, replyId)) {
         alert('Não conectado ao chat. Aguarde.');
         return;
     }
     input.value = '';
+    setReplyingTo(null);
 }
 
 async function sendImage(event) {
@@ -501,10 +557,12 @@ function showHome() {
 
 // ── Configurações do Servidor ─────────────────────────────────
 let pendingServerIconUrl = null;
+let pendingServerIconFile = null;
 
 function openServerSettings() {
     if (!currentServer) return;
     pendingServerIconUrl = null;
+    pendingServerIconFile = null;
     document.getElementById('settingsServerName').value = currentServer.name;
     document.getElementById('settingsServerDesc').value = currentServer.description || '';
     document.getElementById('settingsInviteCode').textContent = currentServer.inviteCode;
@@ -531,6 +589,7 @@ function renderSettingsIconPreview(iconUrl, name) {
 function previewServerIcon(event) {
     const file = event.target.files[0];
     if (!file) return;
+    pendingServerIconFile = file;
     const reader = new FileReader();
     reader.onload = e => {
         pendingServerIconUrl = e.target.result;
@@ -545,9 +604,14 @@ async function saveServerSettings() {
     const desc = document.getElementById('settingsServerDesc').value.trim();
     if (!name) return;
 
-    const iconUrl = pendingServerIconUrl !== null ? pendingServerIconUrl : (currentServer.iconUrl || '');
+    // Upload icon via multipart first if a new file was selected
+    if (pendingServerIconFile) {
+        const iconRes = await apiUploadServerIcon(currentServer.id, pendingServerIconFile);
+        if (iconRes.error) { showToast(iconRes.error, 'error'); return; }
+        pendingServerIconUrl = iconRes.iconUrl || pendingServerIconUrl;
+    }
 
-    const res = await apiUpdateServer(currentServer.id, name, desc, iconUrl);
+    const res = await apiUpdateServer(currentServer.id, name, desc, null);
     if (res.error) { showToast(res.error, 'error'); return; }
 
     currentServer = res;

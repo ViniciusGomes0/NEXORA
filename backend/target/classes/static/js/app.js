@@ -241,7 +241,7 @@ function appendMessage(msg) {
     div.className = 'message';
     const name = msg.authorDisplayName || msg.authorUsername || '?';
     const initial = name[0].toUpperCase();
-    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
     const avatarHtml = msg.authorAvatarUrl
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
@@ -501,10 +501,12 @@ function showHome() {
 
 // ── Configurações do Servidor ─────────────────────────────────
 let pendingServerIconUrl = null;
+let pendingServerIconFile = null;
 
 function openServerSettings() {
     if (!currentServer) return;
     pendingServerIconUrl = null;
+    pendingServerIconFile = null;
     document.getElementById('settingsServerName').value = currentServer.name;
     document.getElementById('settingsServerDesc').value = currentServer.description || '';
     document.getElementById('settingsInviteCode').textContent = currentServer.inviteCode;
@@ -531,6 +533,7 @@ function renderSettingsIconPreview(iconUrl, name) {
 function previewServerIcon(event) {
     const file = event.target.files[0];
     if (!file) return;
+    pendingServerIconFile = file;
     const reader = new FileReader();
     reader.onload = e => {
         pendingServerIconUrl = e.target.result;
@@ -545,9 +548,14 @@ async function saveServerSettings() {
     const desc = document.getElementById('settingsServerDesc').value.trim();
     if (!name) return;
 
-    const iconUrl = pendingServerIconUrl !== null ? pendingServerIconUrl : (currentServer.iconUrl || '');
+    // Upload icon via multipart first if a new file was selected
+    if (pendingServerIconFile) {
+        const iconRes = await apiUploadServerIcon(currentServer.id, pendingServerIconFile);
+        if (iconRes.error) { showToast(iconRes.error, 'error'); return; }
+        pendingServerIconUrl = iconRes.iconUrl || pendingServerIconUrl;
+    }
 
-    const res = await apiUpdateServer(currentServer.id, name, desc, iconUrl);
+    const res = await apiUpdateServer(currentServer.id, name, desc, null);
     if (res.error) { showToast(res.error, 'error'); return; }
 
     currentServer = res;

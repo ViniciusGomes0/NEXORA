@@ -19,4 +19,8 @@ public class MessageDTO {
     private String authorAvatarUrl;
     private Long channelId;
     private LocalDateTime createdAt;
+    private Long replyToMessageId;
+    private String replyToAuthorName;
+    private String replyToContent;
+    private String replyToImageUrl;
 }

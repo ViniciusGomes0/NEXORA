@@ -109,12 +109,24 @@ async function apiDeleteChannel(channelId) {
     return safeJson(res);
 }
 
-async function apiUpdateServer(serverId, name, description) {
+async function apiUpdateServer(serverId, name, description, iconUrl) {
     const res = await apiFetch(`/servers/${serverId}`, {
         method: 'PUT',
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify({ name, description, iconUrl: iconUrl || null })
     });
     if (!res.ok) return { error: `Erro ${res.status}` };
+    return safeJson(res);
+}
+
+async function apiUploadServerIcon(serverId, file) {
+    const form = new FormData();
+    form.append('icon', file);
+    const res = await fetch(API_BASE + `/servers/${serverId}/icon`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: form
+    });
+    if (!res.ok) return { error: `Erro ao enviar ícone (${res.status})` };
     return safeJson(res);
 }
 

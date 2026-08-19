@@ -118,6 +118,18 @@ async function apiUpdateServer(serverId, name, description, iconUrl) {
     return safeJson(res);
 }
 
+async function apiUploadServerIcon(serverId, file) {
+    const form = new FormData();
+    form.append('icon', file);
+    const res = await fetch(API_BASE + `/servers/${serverId}/icon`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: form
+    });
+    if (!res.ok) return { error: `Erro ao enviar ícone (${res.status})` };
+    return safeJson(res);
+}
+
 async function apiDeleteServer(serverId) {
     const res = await apiFetch(`/servers/${serverId}`, { method: 'DELETE' });
     if (!res.ok) return { error: `Erro ${res.status}` };

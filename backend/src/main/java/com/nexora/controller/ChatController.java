@@ -39,7 +39,7 @@ public class ChatController {
                                @Payload IncomingMessage incoming,
                                Principal principal) {
         User user = userService.findByDisplayName(principal.getName());
-        Message saved = messageService.sendMessage(channelId, incoming.getContent(), user);
+        Message saved = messageService.sendMessage(channelId, incoming.getContent(), null, incoming.getReplyToMessageId(), user);
         MessageDTO dto = messageService.toDTO(saved);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
     }
@@ -65,5 +65,6 @@ public class ChatController {
     @Data
     public static class IncomingMessage {
         private String content;
+        private Long replyToMessageId;
     }
 }

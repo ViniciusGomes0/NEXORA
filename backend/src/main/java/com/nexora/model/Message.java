@@ -36,4 +36,8 @@ public class Message {
 
     @Column(name = "edited_at")
     private LocalDateTime editedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reply_to_message_id")
+    private Message replyToMessage;
 }

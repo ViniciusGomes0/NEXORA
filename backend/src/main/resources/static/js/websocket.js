@@ -27,8 +27,10 @@ function subscribeToChannel(channelId) {
     });
 }
 
-function wsSendMessage(channelId, content) {
+function wsSendMessage(channelId, content, replyToMessageId) {
     if (!stompClient || !stompClient.connected) return false;
-    stompClient.send(`/app/chat/${channelId}`, {}, JSON.stringify({ content }));
+    const payload = { content };
+    if (replyToMessageId) payload.replyToMessageId = replyToMessageId;
+    stompClient.send(`/app/chat/${channelId}`, {}, JSON.stringify(payload));
     return true;
 }

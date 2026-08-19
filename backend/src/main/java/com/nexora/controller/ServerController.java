@@ -13,7 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,6 +133,24 @@ public class ServerController {
                                           @AuthenticationPrincipal UserDetails ud) {
         try {
             Server server = serverService.updateServer(id, req, currentUser(ud));
+            return ResponseEntity.ok(serverInfo(server));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/icon")
+    public ResponseEntity<?> uploadServerIcon(@PathVariable Long id,
+                                              @RequestParam("icon") MultipartFile file,
+                                              @AuthenticationPrincipal UserDetails ud) {
+        try {
+            User user = currentUser(ud);
+            String mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+            String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+            String iconUrl = "data:" + mime + ";base64," + base64;
+            ServerRequest req = new ServerRequest();
+            req.setIconUrl(iconUrl);
+            Server server = serverService.updateServer(id, req, user);
             return ResponseEntity.ok(serverInfo(server));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
