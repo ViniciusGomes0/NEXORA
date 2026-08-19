@@ -261,7 +261,8 @@ function appendMessage(msg) {
     div.dataset.msgId = msg.id;
     const name = msg.authorDisplayName || msg.authorUsername || '?';
     const initial = name[0].toUpperCase();
-    const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    const rawDate = msg.createdAt && !msg.createdAt.endsWith('Z') ? msg.createdAt + 'Z' : msg.createdAt;
+    const time = new Date(rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
     const avatarHtml = msg.authorAvatarUrl
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
