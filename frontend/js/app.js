@@ -890,7 +890,7 @@ async function submitDeleteServer() {
 }
 
 function downloadApp() {
-    window.open('https://github.com/ViniciusGomes0/NEXORA/releases/download/v1.0.3/Nexora.Setup.1.0.3.exe', '_blank');
+    window.open('https://github.com/ViniciusGomes0/NEXORA/releases/download/v1.0.4/Nexora.Setup.1.0.3.exe', '_blank');
 }
 
 // Modals
