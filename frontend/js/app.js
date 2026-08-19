@@ -415,7 +415,7 @@ document.getElementById('messageInput').addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
             const selected = popup.querySelector('.mention-item.selected') || popup.querySelector('.mention-item');
-            if (selected) selected.click();
+            if (selected) insertMention(selected.dataset.name);
             return;
         }
         if (e.key === 'Escape') {
