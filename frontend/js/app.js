@@ -206,6 +206,9 @@ async function selectServer(server) {
         else voiceDiv.appendChild(item);
     });
 
+    const voiceChannels = channels.filter(ch => ch.type === 'VOICE');
+    subscribeVoiceSidebar(voiceChannels);
+
     if (channels.length > 0 && channels[0].type === 'TEXT') {
         openTextChannel(channels[0]);
     }

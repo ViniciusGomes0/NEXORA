@@ -9,6 +9,8 @@ let isNoiseSupprActive = false;
 let currentVoiceChannel = null;
 let audioContext = null;
 let speakingInterval = null;
+let presenceInterval = null;
+let voiceSidebarSubs = [];
 
 // Nós do pipeline de supressão de ruído
 let nsSourceNode = null;
@@ -75,6 +77,12 @@ async function joinVoiceChannel(channelId, channelName) {
 
     subscribeToVoiceSignaling(channelId);
     announcePresence(channelId);
+
+    if (presenceInterval) clearInterval(presenceInterval);
+    presenceInterval = setInterval(() => {
+        if (currentVoiceChannel === channelId) announcePresence(channelId);
+        else clearInterval(presenceInterval);
+    }, 5000);
 }
 
 // ── Supressão de Ruído ─────────────────────────────────────────
@@ -176,6 +184,8 @@ function resetNoiseSuppression() {
 }
 
 function leaveVoice() {
+    if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+
     // Avisa todos os peers que saiu
     if (currentVoiceChannel) {
         const me = getUser();
@@ -652,6 +662,30 @@ function createPeer(peerId, channelId) {
 function announcePresence(channelId) {
     const user = getUser();
     sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
+}
+
+function subscribeVoiceSidebar(voiceChannels) {
+    voiceSidebarSubs.forEach(sub => { try { sub.unsubscribe(); } catch(e) {} });
+    voiceSidebarSubs = [];
+
+    if (!stompClient || !stompClient.connected) {
+        setTimeout(() => subscribeVoiceSidebar(voiceChannels), 1000);
+        return;
+    }
+
+    voiceChannels.forEach(ch => {
+        const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
+            const signal = JSON.parse(frame.body);
+            if (signal.type === 'join') {
+                addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
+            } else if (signal.type === 'leave') {
+                if (currentVoiceChannel !== ch.id) {
+                    removeSidebarVoiceMember(`vp-${signal.from}`);
+                }
+            }
+        });
+        voiceSidebarSubs.push(sub);
+    });
 }
 
 function sendSignal(channelId, signal) {

@@ -206,6 +206,10 @@ async function selectServer(server) {
         else voiceDiv.appendChild(item);
     });
 
+    // Inscreve passivamente nos canais de voz para ver quem está na call
+    const voiceChannels = channels.filter(ch => ch.type === 'VOICE');
+    subscribeVoiceSidebar(voiceChannels);
+
     if (channels.length > 0 && channels[0].type === 'TEXT') {
         openTextChannel(channels[0]);
     }

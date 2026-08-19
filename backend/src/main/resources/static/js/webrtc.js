@@ -9,6 +9,8 @@ let isNoiseSupprActive = false;
 let currentVoiceChannel = null;
 let audioContext = null;
 let speakingInterval = null;
+let presenceInterval = null;
+let voiceSidebarSubs = [];
 
 // Nós do pipeline de supressão de ruído
 let nsSourceNode = null;
@@ -75,6 +77,13 @@ async function joinVoiceChannel(channelId, channelName) {
 
     subscribeToVoiceSignaling(channelId);
     announcePresence(channelId);
+
+    // Reenvia presença a cada 5s para quem acabou de abrir o servidor ver quem está na call
+    if (presenceInterval) clearInterval(presenceInterval);
+    presenceInterval = setInterval(() => {
+        if (currentVoiceChannel === channelId) announcePresence(channelId);
+        else clearInterval(presenceInterval);
+    }, 5000);
 }
 
 // ── Supressão de Ruído ─────────────────────────────────────────
@@ -176,6 +185,8 @@ function resetNoiseSuppression() {
 }
 
 function leaveVoice() {
+    if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+
     // Avisa todos os peers que saiu
     if (currentVoiceChannel) {
         const me = getUser();
@@ -652,6 +663,35 @@ function createPeer(peerId, channelId) {
 function announcePresence(channelId) {
     const user = getUser();
     sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
+}
+
+// Inscreve passivamente nos canais de voz do servidor para mostrar quem está na call na sidebar
+function subscribeVoiceSidebar(voiceChannels) {
+    // Cancela inscrições anteriores
+    voiceSidebarSubs.forEach(sub => { try { sub.unsubscribe(); } catch(e) {} });
+    voiceSidebarSubs = [];
+
+    if (!stompClient || !stompClient.connected) {
+        // Tenta novamente após conexão
+        setTimeout(() => subscribeVoiceSidebar(voiceChannels), 1000);
+        return;
+    }
+
+    voiceChannels.forEach(ch => {
+        const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
+            const signal = JSON.parse(frame.body);
+            // Ignora sinais WebRTC — só processa join/leave para sidebar
+            if (signal.type === 'join') {
+                addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
+            } else if (signal.type === 'leave') {
+                // Só remove se não for o próprio usuário já na call (evita duplicar lógica)
+                if (currentVoiceChannel !== ch.id) {
+                    removeSidebarVoiceMember(`vp-${signal.from}`);
+                }
+            }
+        });
+        voiceSidebarSubs.push(sub);
+    });
 }
 
 function sendSignal(channelId, signal) {
