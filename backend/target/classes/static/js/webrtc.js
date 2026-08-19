@@ -9,11 +9,16 @@ let isNoiseSupprActive = false;
 let currentVoiceChannel = null;
 let audioContext = null;
 let speakingInterval = null;
+let remoteSpeakingContexts = {};
+let remoteSpeakingIntervals = {};
+let presenceInterval = null;
+let voiceSidebarSubs = [];
 
 // Nós do pipeline de supressão de ruído
 let nsSourceNode = null;
 let nsDestNode = null;
 let nsProcessedStream = null;
+let callActiveStreamId = null;
 
 const ICE_CONFIG = {
     iceServers: [
@@ -46,16 +51,20 @@ const AUDIO_CONSTRAINTS = {
 };
 
 async function joinVoiceChannel(channelId, channelName) {
-    if (currentVoiceChannel === channelId) return;
+    if (currentVoiceChannel === channelId) {
+        showVoiceView(channelName);
+        return;
+    }
 
     if (currentVoiceChannel !== null) leaveVoice();
 
     currentVoiceChannel = channelId;
 
-    // Mostra a voice bar na sidebar (não esconde o chat)
+    // Mostra a voice bar na sidebar e a view principal de call
     document.getElementById('voiceBarChannelName').textContent = channelName;
     document.getElementById('voiceBar').classList.remove('hidden');
     document.getElementById('voiceParticipants').innerHTML = '';
+    showVoiceView(channelName);
 
     // Marca canal ativo na sidebar
     document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
@@ -75,6 +84,12 @@ async function joinVoiceChannel(channelId, channelName) {
 
     subscribeToVoiceSignaling(channelId);
     announcePresence(channelId);
+
+    if (presenceInterval) clearInterval(presenceInterval);
+    presenceInterval = setInterval(() => {
+        if (currentVoiceChannel === channelId) announcePresence(channelId);
+        else clearInterval(presenceInterval);
+    }, 5000);
 }
 
 // ── Supressão de Ruído ─────────────────────────────────────────
@@ -176,8 +191,19 @@ function resetNoiseSuppression() {
 }
 
 function leaveVoice() {
+    if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+
+    // Avisa todos os peers que saiu — captura o canal antes de zerar
+    const leavingChannel = currentVoiceChannel;
+    currentVoiceChannel = null;
+    if (leavingChannel) {
+        const me = getUser();
+        sendSignal(leavingChannel, { type: 'leave', from: String(me.id) });
+    }
+
     resetNoiseSuppression();
     stopSpeakingDetection();
+    Object.keys(remoteSpeakingIntervals).forEach(id => stopRemoteSpeakingDetection(id));
     clearSidebarVoiceMembers();
     peerInfo = {};
 
@@ -191,7 +217,6 @@ function leaveVoice() {
     }
     Object.values(peers).forEach(pc => pc.close());
     peers = {};
-    currentVoiceChannel = null;
 
     document.getElementById('voiceBar').classList.add('hidden');
     document.getElementById('voiceParticipants').innerHTML = '';
@@ -200,9 +225,18 @@ function leaveVoice() {
     document.getElementById('screenShareOverlay').classList.add('hidden');
     isScreenSharing = false;
 
+    document.getElementById('callGrid').innerHTML = '';
+    document.getElementById('callScreenThumbs').innerHTML = '';
+    document.getElementById('callScreenThumbs').classList.add('hidden');
+    hideCallStage();
+    hideVoiceView();
+    callActiveStreamId = null;
+
     const btn = document.getElementById('screenShareBtn');
     btn.title = 'Compartilhar Tela';
     btn.classList.remove('screen-active');
+    const callScreenBtn = document.getElementById('callScreenBtn');
+    if (callScreenBtn) callScreenBtn.classList.remove('screen-active');
 
     document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
 }
@@ -220,18 +254,21 @@ function startSpeakingDetection() {
         const data = new Uint8Array(analyser.frequencyBinCount);
 
         speakingInterval = setInterval(() => {
-            // Aura verde fica no membro da sidebar esquerda (debaixo do canal de voz)
             const sidebarEl = document.getElementById('svm-vp-local');
-            if (!sidebarEl) return;
+            const callTile = document.getElementById('ctile-vp-local');
             if (isMuted) {
-                sidebarEl.classList.remove('speaking', 'mic-active');
+                if (sidebarEl) sidebarEl.classList.remove('speaking', 'mic-active');
+                if (callTile) callTile.classList.remove('speaking');
                 return;
             }
             analyser.getByteFrequencyData(data);
             const avg = data.reduce((a, b) => a + b, 0) / data.length;
             const isSpeaking = avg > 4;
-            sidebarEl.classList.toggle('speaking', isSpeaking);
-            sidebarEl.classList.toggle('mic-active', !isSpeaking);
+            if (sidebarEl) {
+                sidebarEl.classList.toggle('speaking', isSpeaking);
+                sidebarEl.classList.toggle('mic-active', !isSpeaking);
+            }
+            if (callTile) callTile.classList.toggle('speaking', isSpeaking);
         }, 80);
     } catch (e) {}
 }
@@ -239,6 +276,38 @@ function startSpeakingDetection() {
 function stopSpeakingDetection() {
     if (speakingInterval) { clearInterval(speakingInterval); speakingInterval = null; }
     if (audioContext) { audioContext.close(); audioContext = null; }
+}
+
+function startRemoteSpeakingDetection(peerId, stream) {
+    stopRemoteSpeakingDetection(peerId);
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        remoteSpeakingContexts[peerId] = ctx;
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        remoteSpeakingIntervals[peerId] = setInterval(() => {
+            analyser.getByteFrequencyData(data);
+            const avg = data.reduce((a, b) => a + b, 0) / data.length;
+            const isSpeaking = avg > 4;
+            const sidebarEl = document.getElementById(`svm-vp-${peerId}`);
+            const callTile = document.getElementById(`ctile-vp-${peerId}`);
+            if (sidebarEl) sidebarEl.classList.toggle('speaking', isSpeaking);
+            if (callTile) callTile.classList.toggle('speaking', isSpeaking);
+        }, 80);
+    } catch (e) {}
+}
+
+function stopRemoteSpeakingDetection(peerId) {
+    if (remoteSpeakingIntervals[peerId]) { clearInterval(remoteSpeakingIntervals[peerId]); delete remoteSpeakingIntervals[peerId]; }
+    if (remoteSpeakingContexts[peerId]) { remoteSpeakingContexts[peerId].close().catch(() => {}); delete remoteSpeakingContexts[peerId]; }
+    const sidebarEl = document.getElementById(`svm-vp-${peerId}`);
+    const callTile = document.getElementById(`ctile-vp-${peerId}`);
+    if (sidebarEl) sidebarEl.classList.remove('speaking');
+    if (callTile) callTile.classList.remove('speaking');
 }
 
 // ── Compartilhamento de tela ───────────────────────────────────
@@ -263,10 +332,16 @@ async function toggleScreenShare() {
         const btn = document.getElementById('screenShareBtn');
         btn.title = 'Parar Transmissão';
         btn.classList.add('screen-active');
+        const callBtn = document.getElementById('callScreenBtn');
+        if (callBtn) { callBtn.title = 'Parar Transmissão'; callBtn.classList.add('screen-active'); }
 
         const localVideo = document.getElementById('localVideo');
         localVideo.srcObject = screenStream;
         document.getElementById('screenShareOverlay').classList.remove('hidden');
+
+        // Adiciona miniatura local no modal
+        const me = getUser();
+        addScreenThumb('local', (me.displayName || me.username) + ' (você)', screenStream);
 
         screenStream.getVideoTracks()[0].onended = stopScreenShare;
 
@@ -320,6 +395,10 @@ function stopScreenShare() {
     const btn = document.getElementById('screenShareBtn');
     btn.title = 'Compartilhar Tela';
     btn.classList.remove('screen-active');
+    const callBtn = document.getElementById('callScreenBtn');
+    if (callBtn) { callBtn.title = 'Compartilhar Tela'; callBtn.classList.remove('screen-active'); }
+
+    removeScreenThumb('local');
 
     const overlay = document.getElementById('screenShareOverlay');
     // Só esconde o overlay se não há vídeo remoto
@@ -344,6 +423,8 @@ function updateMicState() {
     btn.classList.toggle('muted', isMuted);
     btn.title = isMuted ? 'Microfone Mutado' : 'Microfone Ativo';
     btn.textContent = isMuted ? '🔇' : '🎙️';
+    const callBtn = document.getElementById('callMicBtn');
+    if (callBtn) callBtn.classList.toggle('muted', isMuted);
 }
 
 function toggleDeafen() {
@@ -353,6 +434,10 @@ function toggleDeafen() {
     const btn = document.getElementById('deafBtn');
     btn.classList.toggle('muted', isDeafened);
     btn.textContent = isDeafened ? '🔕' : '🎧';
+    const callBtn = document.getElementById('callDeafBtn');
+    if (callBtn) callBtn.classList.toggle('muted', isDeafened);
+    const sv = document.getElementById('callStageVideo');
+    if (sv && sv.srcObject) sv.muted = isDeafened;
 }
 
 // ── Participantes (painel de membros na direita) ───────────────
@@ -371,11 +456,236 @@ function addVoiceParticipant(displayName, isLocal = false, id = null, avatarUrl 
         <div class="vp-name">${displayName}${isLocal ? ' (você)' : ''}</div>
     `;
     container.appendChild(div);
+
+    addCallTile(displayName, isLocal, elemId, avatarUrl);
 }
 
 function removeVoiceParticipant(id) {
     const el = document.getElementById(id);
     if (el) el.remove();
+    removeCallTile(id);
+}
+
+// ── Tiles da Call View ─────────────────────────────────────────
+function addCallTile(displayName, isLocal, id, avatarUrl) {
+    const grid = document.getElementById('callGrid');
+    const tileId = `ctile-${id}`;
+    if (document.getElementById(tileId)) return;
+
+    const initial = displayName ? displayName[0].toUpperCase() : '?';
+    const avatarStyle = avatarUrl
+        ? `style="background-image:url('${avatarUrl}');background-size:cover;background-position:center;"`
+        : '';
+
+    const tile = document.createElement('div');
+    tile.className = 'call-tile';
+    tile.id = tileId;
+    tile.innerHTML = `
+        <div class="call-tile-avatar" ${avatarStyle}>${avatarUrl ? '' : initial}</div>
+        <div class="call-tile-name">${displayName}${isLocal ? ' (você)' : ''}</div>
+    `;
+    grid.appendChild(tile);
+    updateCallGridLayout();
+}
+
+function removeCallTile(id) {
+    const tile = document.getElementById(`ctile-${id}`);
+    if (tile) tile.remove();
+    updateCallGridLayout();
+}
+
+function updateCallGridLayout() {
+    const grid = document.getElementById('callGrid');
+    const count = grid.children.length;
+    if (count <= 1)       grid.style.gridTemplateColumns = '1fr';
+    else if (count <= 4)  grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    else if (count <= 9)  grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    else                  grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+}
+
+// ── Controle da Voice View ─────────────────────────────────────
+function showVoiceView(channelName) {
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('chatView').classList.add('hidden');
+    document.getElementById('voiceView').classList.remove('hidden');
+    document.getElementById('membersSidebar').classList.add('hidden');
+    if (channelName) document.getElementById('callVoiceChannelName').textContent = channelName;
+}
+
+function hideVoiceView() {
+    document.getElementById('voiceView').classList.add('hidden');
+    document.getElementById('homeView').classList.remove('hidden');
+}
+
+function showCallStage() {
+    document.getElementById('callStage').classList.remove('hidden');
+    document.getElementById('callBody').classList.add('screen-active');
+}
+
+function hideCallStage() {
+    document.getElementById('callStage').classList.add('hidden');
+    document.getElementById('callBody').classList.remove('screen-active');
+    const v = document.getElementById('callStageVideo');
+    if (v) v.srcObject = null;
+    callActiveStreamId = null;
+}
+
+function selectCallStream(id) {
+    callActiveStreamId = id;
+    const stream = getStreamById(id);
+    const video = document.getElementById('callStageVideo');
+    if (video) {
+        video.srcObject = stream || null;
+        if (stream) video.muted = (id === 'local') || isDeafened;
+    }
+    const lbl = document.getElementById('callStageSharer');
+    if (lbl) {
+        const info = id === 'local'
+            ? { displayName: ((getUser().displayName || getUser().username) + ' (você)') }
+            : (peerInfo[id] || { displayName: `Usuário ${id}` });
+        lbl.textContent = info.displayName;
+    }
+    document.querySelectorAll('#callScreenThumbs .call-cthumb').forEach(t => {
+        t.classList.toggle('active', t.dataset.id === id);
+    });
+}
+
+function addCallScreenThumb(id, label, stream) {
+    const container = document.getElementById('callScreenThumbs');
+    let thumb = document.getElementById(`csthumb-${id}`);
+    if (!thumb) {
+        thumb = document.createElement('div');
+        thumb.className = 'call-cthumb';
+        thumb.id = `csthumb-${id}`;
+        thumb.dataset.id = id;
+        const video = document.createElement('video');
+        video.autoplay = true; video.muted = true; video.playsinline = true;
+        const lbl = document.createElement('div');
+        lbl.className = 'call-cthumb-label';
+        lbl.textContent = label;
+        thumb.appendChild(video);
+        thumb.appendChild(lbl);
+        thumb.addEventListener('click', () => { selectCallStream(id); selectScreenThumb(id); });
+        container.appendChild(thumb);
+    }
+    thumb.querySelector('video').srcObject = stream;
+    // Mostra barra de miniaturas só quando há mais de 1 stream
+    container.classList.toggle('hidden', container.children.length <= 1);
+}
+
+function removeCallScreenThumb(id) {
+    const thumb = document.getElementById(`csthumb-${id}`);
+    if (thumb) thumb.remove();
+    const container = document.getElementById('callScreenThumbs');
+    container.classList.toggle('hidden', container.children.length <= 1);
+    if (callActiveStreamId === id) {
+        const next = container.querySelector('.call-cthumb');
+        if (next) selectCallStream(next.dataset.id);
+        else hideCallStage();
+    }
+}
+
+// ── Modal de tela cheia ────────────────────────────────────────
+let screenModalActiveId = null;
+
+function openScreenModal() {
+    const modal = document.getElementById('screenModal');
+    modal.classList.remove('hidden');
+    // Seleciona a primeira thumb disponível se nenhuma estiver ativa
+    if (!screenModalActiveId) {
+        const firstThumb = document.querySelector('.screen-thumb');
+        if (firstThumb) selectScreenThumb(firstThumb.dataset.id);
+    } else {
+        selectScreenThumb(screenModalActiveId);
+    }
+}
+
+function closeScreenModal() {
+    document.getElementById('screenModal').classList.add('hidden');
+    // Pausa o vídeo modal para evitar duplicidade de stream
+    const mv = document.getElementById('screenModalVideo');
+    mv.srcObject = null;
+    screenModalActiveId = null;
+}
+
+function selectScreenThumb(id) {
+    screenModalActiveId = id;
+    const stream = getStreamById(id);
+    const mv = document.getElementById('screenModalVideo');
+    const empty = document.getElementById('screenModalEmpty');
+
+    if (stream) {
+        mv.srcObject = stream;
+        mv.muted = (id === 'local') || isDeafened;
+        mv.classList.remove('hidden');
+        empty.classList.add('hidden');
+    } else {
+        mv.srcObject = null;
+        mv.classList.add('hidden');
+        empty.classList.remove('hidden');
+    }
+
+    document.querySelectorAll('.screen-thumb').forEach(t => {
+        t.classList.toggle('active', t.dataset.id === id);
+    });
+}
+
+function getStreamById(id) {
+    if (id === 'local') return screenStream;
+    const wrap = document.getElementById(`rv-${id}`);
+    if (wrap) return wrap.querySelector('video').srcObject;
+    return null;
+}
+
+function addScreenThumb(id, label, stream) {
+    const thumbsEl = document.getElementById('screenModalThumbs');
+    let thumb = document.getElementById(`sthumb-${id}`);
+    if (!thumb) {
+        thumb = document.createElement('div');
+        thumb.className = 'screen-thumb';
+        thumb.id = `sthumb-${id}`;
+        thumb.dataset.id = id;
+
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsinline = true;
+
+        const lbl = document.createElement('div');
+        lbl.className = 'screen-thumb-label';
+        lbl.textContent = label;
+
+        thumb.appendChild(video);
+        thumb.appendChild(lbl);
+        thumb.addEventListener('click', () => { selectScreenThumb(id); selectCallStream(id); });
+        thumbsEl.appendChild(thumb);
+    }
+    thumb.querySelector('video').srcObject = stream;
+
+    // Call view: mostra o stage e adiciona miniatura
+    showCallStage();
+    addCallScreenThumb(id, label, stream);
+    if (!callActiveStreamId) selectCallStream(id);
+
+    if (!screenModalActiveId) {
+        selectScreenThumb(id);
+    }
+}
+
+function removeScreenThumb(id) {
+    const thumb = document.getElementById(`sthumb-${id}`);
+    if (thumb) thumb.remove();
+    if (screenModalActiveId === id) {
+        screenModalActiveId = null;
+        const next = document.querySelector('.screen-thumb');
+        if (next) selectScreenThumb(next.dataset.id);
+        else {
+            const mv = document.getElementById('screenModalVideo');
+            mv.srcObject = null;
+            document.getElementById('screenModalEmpty').classList.remove('hidden');
+        }
+    }
+    removeCallScreenThumb(id);
 }
 
 function addRemoteVideo(stream, userId) {
@@ -395,6 +705,7 @@ function addRemoteVideo(stream, userId) {
         }
         audio.srcObject = stream;
         audio.muted = isDeafened;
+        startRemoteSpeakingDetection(userId, stream);
         return;
     }
 
@@ -410,12 +721,16 @@ function addRemoteVideo(stream, userId) {
         video.autoplay = true;
         video.playsinline = true;
         video.className = 'remote-video';
-        // Áudio da tela também respeita deafen
         video.muted = isDeafened;
         wrap.appendChild(video);
         container.appendChild(wrap);
     }
     wrap.querySelector('video').srcObject = stream;
+
+    // Adiciona miniatura no modal
+    const info = peerInfo[userId] || {};
+    const label = info.displayName || `Usuário ${userId}`;
+    addScreenThumb(userId, label, stream);
 }
 
 // ── WebRTC Signaling ───────────────────────────────────────────
@@ -428,6 +743,7 @@ function subscribeToVoiceSignaling(channelId) {
 
         if (signal.type === 'join') {
             peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+            addVoiceParticipant(signal.displayName || `Usuário ${signal.from}`, false, `vp-${signal.from}`, signal.avatarUrl);
             addSidebarVoiceMember(channelId, signal.displayName || `Usuário ${signal.from}`, `vp-${signal.from}`, signal.avatarUrl);
             const pc = createPeer(signal.from, channelId);
             const offer = await pc.createOffer();
@@ -436,7 +752,12 @@ function subscribeToVoiceSignaling(channelId) {
             const me = getUser();
             sendSignal(channelId, { type: 'offer', sdp: improvedOffer, to: signal.from, from: myId, displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || '' });
         } else if (signal.type === 'offer' && signal.to === myId) {
-            if (signal.displayName) peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+            if (signal.displayName) {
+                peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
+                // Mostra o usuário na sidebar imediatamente, antes do WebRTC conectar
+                addVoiceParticipant(signal.displayName, false, `vp-${signal.from}`, signal.avatarUrl || '');
+                addSidebarVoiceMember(channelId, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
+            }
             const pc = createPeer(signal.from, channelId);
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
             const answer = await pc.createAnswer();
@@ -449,6 +770,22 @@ function subscribeToVoiceSignaling(channelId) {
         } else if (signal.type === 'ice' && signal.to === myId) {
             const pc = peers[signal.from];
             if (pc) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        } else if (signal.type === 'leave') {
+            const peerId = signal.from;
+            if (peers[peerId]) { peers[peerId].close(); delete peers[peerId]; }
+            delete peerInfo[peerId];
+            stopRemoteSpeakingDetection(peerId);
+            removeVoiceParticipant(`vp-${peerId}`);
+            removeSidebarVoiceMember(`vp-${peerId}`);
+            removeScreenThumb(peerId);
+            // Remove áudio/vídeo remoto
+            const ra = document.getElementById(`ra-${peerId}`);
+            if (ra) ra.remove();
+            const rv = document.getElementById(`rv-${peerId}`);
+            if (rv) rv.remove();
+            if (!document.querySelector('#remoteVideos video')) {
+                if (!isScreenSharing) document.getElementById('screenShareOverlay').classList.add('hidden');
+            }
         }
     });
 }
@@ -517,6 +854,30 @@ function createPeer(peerId, channelId) {
 function announcePresence(channelId) {
     const user = getUser();
     sendSignal(channelId, { type: 'join', from: String(user.id), displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' });
+}
+
+function subscribeVoiceSidebar(voiceChannels) {
+    voiceSidebarSubs.forEach(sub => { try { sub.unsubscribe(); } catch(e) {} });
+    voiceSidebarSubs = [];
+
+    if (!stompClient || !stompClient.connected) {
+        setTimeout(() => subscribeVoiceSidebar(voiceChannels), 1000);
+        return;
+    }
+
+    voiceChannels.forEach(ch => {
+        const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
+            if (currentVoiceChannel === ch.id) return;
+
+            const signal = JSON.parse(frame.body);
+            if (signal.type === 'join') {
+                addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
+            } else if (signal.type === 'leave') {
+                removeSidebarVoiceMember(`vp-${signal.from}`);
+            }
+        });
+        voiceSidebarSubs.push(sub);
+    });
 }
 
 function sendSignal(channelId, signal) {
