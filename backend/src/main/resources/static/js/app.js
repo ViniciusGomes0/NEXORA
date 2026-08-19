@@ -247,6 +247,11 @@ function appendMessage(msg) {
         ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
         : `<div class="msg-avatar">${initial}</div>`;
 
+    const textHtml = msg.content ? `<div class="msg-content">${escapeHtml(msg.content)}</div>` : '';
+    const imageHtml = msg.imageUrl
+        ? `<div class="msg-image-wrap"><img class="msg-image" src="${msg.imageUrl}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
+        : '';
+
     div.innerHTML = `
         ${avatarHtml}
         <div class="msg-body">
@@ -254,10 +259,21 @@ function appendMessage(msg) {
                 <span class="msg-author">${escapeHtml(name)}</span>
                 <span class="msg-time">${time}</span>
             </div>
-            <div class="msg-content">${escapeHtml(msg.content)}</div>
+            ${textHtml}${imageHtml}
         </div>
     `;
     list.appendChild(div);
+}
+
+function openImageViewer(src) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;';
+    overlay.onclick = () => overlay.remove();
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
 }
 
 function escapeHtml(str) {
@@ -279,6 +295,14 @@ function sendMessage() {
         return;
     }
     input.value = '';
+}
+
+async function sendImage(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file || !currentChannel) return;
+    const res = await apiUploadImage(currentChannel.id, file);
+    if (res.error) showToast(res.error, 'error');
 }
 
 document.getElementById('messageInput').addEventListener('keydown', e => {

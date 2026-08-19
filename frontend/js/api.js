@@ -129,3 +129,15 @@ async function apiRegenerateInvite(serverId) {
     if (!res.ok) return { error: `Erro ${res.status}` };
     return safeJson(res);
 }
+
+async function apiUploadImage(channelId, file) {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch(API_BASE + `/channels/${channelId}/images`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: form
+    });
+    if (!res.ok) return { error: `Erro ao enviar imagem (${res.status})` };
+    return safeJson(res);
+}

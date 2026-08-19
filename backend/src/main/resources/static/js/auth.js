@@ -46,6 +46,7 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
             body: JSON.stringify({
                 username: document.getElementById('regUsername').value,
                 displayName: document.getElementById('regDisplayName').value,
+                email: document.getElementById('regEmail').value,
                 password: document.getElementById('regPassword').value
             })
         });

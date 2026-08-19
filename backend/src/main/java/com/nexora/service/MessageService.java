@@ -20,10 +20,15 @@ public class MessageService {
     private final ChannelRepository channelRepository;
 
     public Message sendMessage(Long channelId, String content, User author) {
+        return sendMessage(channelId, content, null, author);
+    }
+
+    public Message sendMessage(Long channelId, String content, String imageUrl, User author) {
         Channel channel = channelRepository.findById(channelId)
                 .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
         Message msg = Message.builder()
-                .content(content)
+                .content(content != null ? content : "")
+                .imageUrl(imageUrl)
                 .author(author)
                 .channel(channel)
                 .build();
@@ -41,6 +46,7 @@ public class MessageService {
         return MessageDTO.builder()
                 .id(msg.getId())
                 .content(msg.getContent())
+                .imageUrl(msg.getImageUrl())
                 .authorUsername(msg.getAuthor().getUsername())
                 .authorDisplayName(msg.getAuthor().getDisplayName())
                 .authorAvatarUrl(msg.getAuthor().getAvatarUrl())

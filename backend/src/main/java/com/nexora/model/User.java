@@ -36,6 +36,9 @@ public class User {
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
 
+    @Column(nullable = true, length = 255)
+    private String email;
+
     @Column(nullable = false)
     @Builder.Default
     private String status = "online";

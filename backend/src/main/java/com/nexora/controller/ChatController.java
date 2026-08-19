@@ -13,8 +13,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.security.Principal;
+import java.util.Base64;
 import java.util.List;
 
 @RestController
@@ -40,6 +42,24 @@ public class ChatController {
         Message saved = messageService.sendMessage(channelId, incoming.getContent(), user);
         MessageDTO dto = messageService.toDTO(saved);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
+    }
+
+    @PostMapping("/api/channels/{channelId}/images")
+    public ResponseEntity<?> uploadImage(@PathVariable Long channelId,
+                                         @RequestParam("image") MultipartFile file,
+                                         @AuthenticationPrincipal UserDetails ud) {
+        try {
+            User user = userService.findByDisplayName(ud.getUsername());
+            String mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+            String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+            String imageUrl = "data:" + mime + ";base64," + base64;
+            Message saved = messageService.sendMessage(channelId, "", imageUrl, user);
+            MessageDTO dto = messageService.toDTO(saved);
+            messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
+            return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     @Data

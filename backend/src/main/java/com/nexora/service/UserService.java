@@ -32,6 +32,7 @@ public class UserService {
                 .tag(tag)
                 .password(passwordEncoder.encode(req.getPassword()))
                 .displayName(displayName)
+                .email(req.getEmail())
                 .status("online")
                 .build();
         return userRepository.save(user);
