@@ -675,13 +675,13 @@ function subscribeVoiceSidebar(voiceChannels) {
 
     voiceChannels.forEach(ch => {
         const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
+            if (currentVoiceChannel === ch.id) return;
+
             const signal = JSON.parse(frame.body);
             if (signal.type === 'join') {
                 addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
             } else if (signal.type === 'leave') {
-                if (currentVoiceChannel !== ch.id) {
-                    removeSidebarVoiceMember(`vp-${signal.from}`);
-                }
+                removeSidebarVoiceMember(`vp-${signal.from}`);
             }
         });
         voiceSidebarSubs.push(sub);

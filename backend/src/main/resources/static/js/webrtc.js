@@ -679,15 +679,14 @@ function subscribeVoiceSidebar(voiceChannels) {
 
     voiceChannels.forEach(ch => {
         const sub = stompClient.subscribe(`/topic/voice/${ch.id}`, (frame) => {
+            // Se já está nesse canal, subscribeToVoiceSignaling cuida — evita duplicar
+            if (currentVoiceChannel === ch.id) return;
+
             const signal = JSON.parse(frame.body);
-            // Ignora sinais WebRTC — só processa join/leave para sidebar
             if (signal.type === 'join') {
                 addSidebarVoiceMember(ch.id, signal.displayName, `vp-${signal.from}`, signal.avatarUrl || '');
             } else if (signal.type === 'leave') {
-                // Só remove se não for o próprio usuário já na call (evita duplicar lógica)
-                if (currentVoiceChannel !== ch.id) {
-                    removeSidebarVoiceMember(`vp-${signal.from}`);
-                }
+                removeSidebarVoiceMember(`vp-${signal.from}`);
             }
         });
         voiceSidebarSubs.push(sub);
