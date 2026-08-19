@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 
 // URL do backend em produção
-const NEXORA_URL = 'https://nexorabackend-production.up.railway.app';
+const NEXORA_URL = 'https://nexora-production-b6ea.up.railway.app';
 
 function createWindow() {
   const win = new BrowserWindow({
