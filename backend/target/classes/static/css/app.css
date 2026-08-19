@@ -1008,13 +1008,36 @@ body {
     user-select: none;
 }
 
+.voice-user-context-menu .vucm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
 .voice-user-context-menu .vucm-label {
     font-size: 11px;
     font-weight: 700;
     color: #b5bac1;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-bottom: 10px;
+}
+
+.voice-user-context-menu .vucm-close {
+    background: none;
+    border: none;
+    color: #b5bac1;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    border-radius: 3px;
+    transition: color 0.1s, background 0.1s;
+}
+
+.voice-user-context-menu .vucm-close:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.1);
 }
 
 .voice-user-context-menu .vucm-row {

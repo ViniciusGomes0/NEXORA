@@ -909,7 +909,10 @@ function showVoiceVolumeMenu(x, y, memberId, displayName) {
     menu.className = 'voice-user-context-menu';
     menu.id = 'voiceVolumeContextMenu';
     menu.innerHTML = `
-        <div class="vucm-label">Volume do usuário</div>
+        <div class="vucm-header">
+            <div class="vucm-label">Volume do usuário</div>
+            <button class="vucm-close" id="vucmClose" title="Fechar">✕</button>
+        </div>
         <div class="vucm-row">
             <span class="vucm-icon">🔊</span>
             <input type="range" id="vucmSlider" min="0" max="200" value="${savedPct}" step="1">
@@ -924,6 +927,8 @@ function showVoiceVolumeMenu(x, y, memberId, displayName) {
     const rect = menu.getBoundingClientRect();
     if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
     if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+
+    menu.querySelector('#vucmClose').addEventListener('click', closeVoiceVolumeMenu);
 
     const slider = menu.querySelector('#vucmSlider');
     const valueLabel = menu.querySelector('#vucmValue');
@@ -960,6 +965,7 @@ function addSidebarVoiceMember(channelId, displayName, memberId, avatarUrl = '')
     const div = document.createElement('div');
     div.className = 'voice-sidebar-member';
     div.id = `svm-${memberId}`;
+    if (memberId !== 'vp-local') div.setAttribute('data-tooltip', 'Clique direito para ajustar o volume');
     div.innerHTML = `
         <div class="vsm-avatar" ${avatarStyle}>${avatarUrl ? '' : initial}</div>
         <span>${displayName}</span>
