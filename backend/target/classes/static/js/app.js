@@ -1,5 +1,6 @@
 let currentServer = null;
 let currentChannel = null;
+const serverIconCache = {};
 
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
@@ -153,8 +154,9 @@ async function loadServers() {
         const btn = document.createElement('div');
         btn.className = 'server-icon';
         btn.title = s.name;
-        if (s.iconUrl) {
-            btn.style.backgroundImage = `url('${s.iconUrl}')`;
+        const icon = serverIconCache[s.id] || s.iconUrl || '';
+        if (icon) {
+            btn.style.backgroundImage = `url('${icon}')`;
             btn.style.backgroundSize = 'cover';
             btn.style.backgroundPosition = 'center';
             btn.innerHTML = `<span class="server-icon-text"></span>`;
@@ -528,6 +530,7 @@ async function saveServerSettings() {
     document.getElementById('currentServerName').textContent = res.name;
 
     const finalIconUrl = pendingServerIconUrl || res.iconUrl || '';
+    if (finalIconUrl) serverIconCache[res.id] = finalIconUrl;
     const navBtn = document.querySelector(`[data-server-id="${res.id}"]`);
     if (navBtn) {
         navBtn.title = res.name;
