@@ -356,8 +356,11 @@ function scrollToBottom() {
 }
 
 async function deleteMessage(messageId) {
+    // Remove imediatamente da tela (otimista)
+    removeMessageFromDOM(messageId);
     const res = await apiDeleteMessage(messageId);
-    if (res.error) showToast(res.error, 'error');
+    // Se der erro, só mostra o toast — não redireciona nem recarrega
+    if (res.error) showToast('Erro ao excluir mensagem', 'error');
 }
 
 function removeMessageFromDOM(messageId) {
