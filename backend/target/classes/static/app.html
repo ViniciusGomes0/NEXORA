@@ -85,6 +85,17 @@
                         </svg>
                         <span class="vbb-label">Tela</span>
                     </button>
+                    <button class="voice-bar-btn" onclick="toggleNoiseSuppression()" id="noiseSupprBtn" title="Supressão de Ruído">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                            <!-- linha de cancelamento (visível só quando OFF) -->
+                            <line class="ns-off-line" x1="3" y1="3" x2="21" y2="21" stroke-width="2.2"/>
+                        </svg>
+                        <span class="vbb-label">Ruído</span>
+                    </button>
                     <button class="voice-bar-btn leave" onclick="leaveVoice()" title="Desconectar">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M23 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 10a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.69 8.76A16 16 0 0 0 12 13.07a16 16 0 0 0 4.31 2.31l1.62-1.62a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 24.01 16"/>
@@ -287,6 +298,14 @@
             </div>
             <div id="modal-serverSettings" class="modal-content hidden">
                 <h3>Configurações do Servidor</h3>
+                <div class="server-icon-upload-area" onclick="document.getElementById('serverIconInput').click()" title="Clique para mudar a foto">
+                    <div id="serverIconPreview" class="server-icon-preview"></div>
+                    <div class="server-icon-upload-overlay">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span>Mudar foto</span>
+                    </div>
+                </div>
+                <input type="file" id="serverIconInput" accept="image/*" style="display:none" onchange="previewServerIcon(event)">
                 <label>Nome do Servidor</label>
                 <input type="text" id="settingsServerName" placeholder="Nome do servidor" onkeydown="if(event.key==='Enter') saveServerSettings()">
                 <label>Descrição</label>

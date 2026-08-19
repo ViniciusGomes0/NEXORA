@@ -5,12 +5,38 @@ let peerInfo = {};
 let isMuted = false;
 let isDeafened = false;
 let isScreenSharing = false;
+let isNoiseSupprActive = false;
 let currentVoiceChannel = null;
 let audioContext = null;
 let speakingInterval = null;
 
+// Nós do pipeline de supressão de ruído
+let nsSourceNode = null;
+let nsDestNode = null;
+let nsProcessedStream = null;
+
 const ICE_CONFIG = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
+
+// Constraints de áudio de alta qualidade — 48 kHz, stereo, sem supressões automáticas ruins
+const AUDIO_CONSTRAINTS = {
+    audio: {
+        sampleRate: 48000,
+        sampleSize: 16,
+        channelCount: 2,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        latency: 0,
+        googEchoCancellation: true,
+        googAutoGainControl: true,
+        googNoiseSuppression: true,
+        googHighpassFilter: true,
+        googTypingNoiseDetection: true,
+        googAudioMirroring: false
+    },
+    video: false
 };
 
 async function joinVoiceChannel(channelId, channelName) {
@@ -31,7 +57,7 @@ async function joinVoiceChannel(channelId, channelName) {
     if (activeItem) activeItem.classList.add('active');
 
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
         updateMicState();
         const selfUser = getUser();
         addVoiceParticipant(selfUser.displayName || selfUser.username, true, 'vp-local', selfUser.avatarUrl);
@@ -45,7 +71,106 @@ async function joinVoiceChannel(channelId, channelName) {
     announcePresence(channelId);
 }
 
+// ── Supressão de Ruído ─────────────────────────────────────────
+async function toggleNoiseSuppression() {
+    isNoiseSupprActive = !isNoiseSupprActive;
+    const btn = document.getElementById('noiseSupprBtn');
+    btn.classList.toggle('ns-active', isNoiseSupprActive);
+    btn.setAttribute('data-tooltip', isNoiseSupprActive ? 'Supressão Ativa' : 'Supressão Desativada');
+
+    if (isNoiseSupprActive) {
+        await applyNoiseSuppression();
+    } else {
+        removeNoiseSuppression();
+    }
+}
+
+async function applyNoiseSuppression() {
+    if (!localStream) return;
+
+    // Cria contexto de áudio dedicado ao pipeline de NS
+    const nsCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+    const source = nsCtx.createMediaStreamSource(localStream);
+
+    // High-pass: corta ruídos de baixa frequência (ar condicionado, ventilador) < 100 Hz
+    const highPass = nsCtx.createBiquadFilter();
+    highPass.type = 'highpass';
+    highPass.frequency.value = 100;
+    highPass.Q.value = 0.7;
+
+    // Low-pass: corta ruídos de alta frequência (chiado, eletrônico) > 8 kHz
+    const lowPass = nsCtx.createBiquadFilter();
+    lowPass.type = 'lowpass';
+    lowPass.frequency.value = 8000;
+    lowPass.Q.value = 0.7;
+
+    // Compressor dinâmico: nivela picos e esmaga ruído de fundo residual
+    const compressor = nsCtx.createDynamicsCompressor();
+    compressor.threshold.value = -40;  // começa a comprimir em -40 dB
+    compressor.knee.value = 10;
+    compressor.ratio.value = 12;       // compressão forte em sons fracos (ruído)
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+
+    // Gain de compensação (compressor reduz volume — recupera)
+    const gain = nsCtx.createGain();
+    gain.gain.value = 1.4;
+
+    // Pipeline: source → highpass → lowpass → compressor → gain → destination
+    const dest = nsCtx.createMediaStreamDestination();
+    source.connect(highPass);
+    highPass.connect(lowPass);
+    lowPass.connect(compressor);
+    compressor.connect(gain);
+    gain.connect(dest);
+
+    nsProcessedStream = dest.stream;
+    nsSourceNode = source;
+    nsDestNode = dest;
+
+    // Substitui a faixa de áudio nos peers ativos
+    const processedTrack = nsProcessedStream.getAudioTracks()[0];
+    Object.values(peers).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+        if (sender) sender.replaceTrack(processedTrack).catch(() => {});
+    });
+
+    // Guarda referência ao contexto para fechar depois
+    nsSourceNode._ctx = nsCtx;
+}
+
+function removeNoiseSuppression() {
+    if (nsSourceNode) {
+        if (nsSourceNode._ctx) nsSourceNode._ctx.close().catch(() => {});
+        nsSourceNode = null;
+        nsDestNode = null;
+    }
+    nsProcessedStream = null;
+
+    // Restaura a faixa de áudio original nos peers
+    if (!localStream) return;
+    const originalTrack = localStream.getAudioTracks()[0];
+    if (!originalTrack) return;
+    Object.values(peers).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+        if (sender) sender.replaceTrack(originalTrack).catch(() => {});
+    });
+}
+
+function resetNoiseSuppression() {
+    isNoiseSupprActive = false;
+    if (nsSourceNode) {
+        if (nsSourceNode._ctx) nsSourceNode._ctx.close().catch(() => {});
+        nsSourceNode = null;
+        nsDestNode = null;
+    }
+    nsProcessedStream = null;
+    const btn = document.getElementById('noiseSupprBtn');
+    if (btn) { btn.classList.remove('ns-active'); btn.removeAttribute('data-tooltip'); }
+}
+
 function leaveVoice() {
+    resetNoiseSuppression();
     stopSpeakingDetection();
     clearSidebarVoiceMembers();
     peerInfo = {};
@@ -158,6 +283,30 @@ function applyHighQualityParams(sender) {
     sender.setParameters(params).catch(() => {});
 }
 
+// Força Opus 48kHz stereo com bitrate alto para o sender de áudio
+function applyHighQualityAudio(sender) {
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    // 510 kbps — teto prático do Opus no WebRTC
+    params.encodings[0].maxBitrate = 510_000;
+    sender.setParameters(params).catch(() => {});
+}
+
+// Reescreve o SDP para priorizar Opus e habilitar stereo + fullband
+function preferOpusInSDP(sdp) {
+    return sdp.split('\r\n').map(line => {
+        if (line.startsWith('a=fmtp:') && line.includes('opus')) {
+            // Remove duplicatas e injeta os parâmetros ideais
+            const base = line.replace(/;?stereo=\d/g, '')
+                             .replace(/;?sprop-stereo=\d/g, '')
+                             .replace(/;?maxaveragebitrate=\d+/g, '')
+                             .replace(/;?cbr=\d/g, '');
+            return base + ';stereo=1;sprop-stereo=1;maxaveragebitrate=510000;cbr=0';
+        }
+        return line;
+    }).join('\r\n');
+}
+
 function stopScreenShare() {
     if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
     isScreenSharing = false;
@@ -232,6 +381,7 @@ function addRemoteVideo(stream, userId) {
         audio.className = 'remote-audio';
         audio.id = `ra-${userId}`;
         audio.srcObject = stream;
+        audio.volume = 1.0;
         if (isDeafened) audio.muted = true;
         audioContainer.appendChild(audio);
         return;
@@ -268,16 +418,18 @@ function subscribeToVoiceSignaling(channelId) {
             addSidebarVoiceMember(channelId, signal.displayName || `Usuário ${signal.from}`, `vp-${signal.from}`, signal.avatarUrl);
             const pc = createPeer(signal.from, channelId);
             const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
+            const improvedOffer = { type: offer.type, sdp: preferOpusInSDP(offer.sdp) };
+            await pc.setLocalDescription(improvedOffer);
             const me = getUser();
-            sendSignal(channelId, { type: 'offer', sdp: offer, to: signal.from, from: myId, displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || '' });
+            sendSignal(channelId, { type: 'offer', sdp: improvedOffer, to: signal.from, from: myId, displayName: me.displayName || me.username, avatarUrl: me.avatarUrl || '' });
         } else if (signal.type === 'offer' && signal.to === myId) {
             if (signal.displayName) peerInfo[signal.from] = { displayName: signal.displayName, avatarUrl: signal.avatarUrl };
             const pc = createPeer(signal.from, channelId);
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
             const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendSignal(channelId, { type: 'answer', sdp: answer, to: signal.from, from: myId });
+            const improvedAnswer = { type: answer.type, sdp: preferOpusInSDP(answer.sdp) };
+            await pc.setLocalDescription(improvedAnswer);
+            sendSignal(channelId, { type: 'answer', sdp: improvedAnswer, to: signal.from, from: myId });
         } else if (signal.type === 'answer' && signal.to === myId) {
             const pc = peers[signal.from];
             if (pc) await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
@@ -294,7 +446,13 @@ function createPeer(peerId, channelId) {
     peers[peerId] = pc;
 
     if (localStream) {
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        localStream.getTracks().forEach(track => {
+            const sender = pc.addTrack(track, localStream);
+            if (track.kind === 'audio') {
+                // Aplica após negociação (setLocalDescription define os encodings)
+                pc.addEventListener('negotiationneeded', () => applyHighQualityAudio(sender), { once: true });
+            }
+        });
     }
 
     pc.onicecandidate = (e) => {

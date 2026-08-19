@@ -902,6 +902,37 @@ body {
 .voice-bar-btn.screen-active { color: #23a55a; background: rgba(35,165,90,0.15); }
 .voice-bar-btn.screen-active:hover { background: rgba(35,165,90,0.25); }
 
+/* Supressão de ruído — OFF: botão acinzentado + linha de corte visível */
+#noiseSupprBtn .ns-off-line { display: block; }
+#noiseSupprBtn.ns-active .ns-off-line { display: none; }
+#noiseSupprBtn.ns-active {
+    color: #23a55a;
+    background: rgba(35,165,90,0.15);
+}
+#noiseSupprBtn.ns-active:hover { background: rgba(35,165,90,0.25); }
+
+/* tooltip personalizado */
+#noiseSupprBtn { position: relative; }
+#noiseSupprBtn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 5px 9px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 99;
+}
+#noiseSupprBtn:hover::after { opacity: 1; }
+
 /* ── Participantes em chamada (sidebar direita) ── */
 .voice-participants-list { padding: 4px 0; }
 
