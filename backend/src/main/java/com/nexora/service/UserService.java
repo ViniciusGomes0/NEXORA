@@ -19,18 +19,19 @@ public class UserService {
     private final Random random = new Random();
 
     public User register(RegisterRequest req) {
-        if (userRepository.existsByEmail(req.getEmail()))
-            throw new RuntimeException("Email já em uso");
+        String displayName = req.getDisplayName() != null && !req.getDisplayName().isBlank()
+                ? req.getDisplayName() : req.getUsername();
+
+        if (userRepository.existsByDisplayName(displayName))
+            throw new RuntimeException("Nome de exibição já em uso");
 
         String tag = generateTag(req.getUsername());
 
         User user = User.builder()
                 .username(req.getUsername())
                 .tag(tag)
-                .email(req.getEmail())
                 .password(passwordEncoder.encode(req.getPassword()))
-                .displayName(req.getDisplayName() != null && !req.getDisplayName().isBlank()
-                        ? req.getDisplayName() : req.getUsername())
+                .displayName(displayName)
                 .status("online")
                 .build();
         return userRepository.save(user);
@@ -48,8 +49,8 @@ public class UserService {
         return tag;
     }
 
-    public User findByEmail(String email) {
-        return userRepository.findByEmail(email)
+    public User findByDisplayName(String displayName) {
+        return userRepository.findByDisplayName(displayName)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
     }
 

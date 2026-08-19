@@ -17,9 +17,9 @@ public class UserDetailsConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        return username -> userRepository.findByEmail(username)
+        return username -> userRepository.findByDisplayName(username)
                 .map(u -> org.springframework.security.core.userdetails.User.builder()
-                        .username(u.getEmail())
+                        .username(u.getDisplayName())
                         .password(u.getPassword())
                         .roles("USER")
                         .build())

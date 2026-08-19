@@ -19,7 +19,7 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getMe(@AuthenticationPrincipal UserDetails ud) {
-        User user = userService.findByEmail(ud.getUsername());
+        User user = userService.findByDisplayName(ud.getUsername());
         return ResponseEntity.ok(profileMap(user));
     }
 
@@ -27,7 +27,7 @@ public class UserController {
     public ResponseEntity<?> updateMe(@RequestBody Map<String, String> body,
                                       @AuthenticationPrincipal UserDetails ud) {
         try {
-            User user = userService.findByEmail(ud.getUsername());
+            User user = userService.findByDisplayName(ud.getUsername());
             User updated = userService.updateProfile(user.getId(), body.get("displayName"), body.get("avatarUrl"));
             return ResponseEntity.ok(profileMap(updated));
         } catch (Exception e) {
@@ -39,7 +39,6 @@ public class UserController {
         return Map.of(
             "id", u.getId(),
             "username", u.getUsername(),
-            "email", u.getEmail(),
             "displayName", u.getDisplayName() != null ? u.getDisplayName() : u.getUsername(),
             "avatarUrl", u.getAvatarUrl() != null ? u.getAvatarUrl() : ""
         );

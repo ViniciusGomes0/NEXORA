@@ -26,7 +26,7 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody RegisterRequest req) {
         try {
             User user = userService.register(req);
-            String token = jwtUtil.generateToken(user.getEmail());
+            String token = jwtUtil.generateToken(user.getDisplayName());
             return ResponseEntity.ok(buildSession(token, user));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -37,10 +37,10 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest req) {
         try {
             authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
+                new UsernamePasswordAuthenticationToken(req.getDisplayName(), req.getPassword())
             );
-            User user = userService.findByEmail(req.getEmail());
-            String token = jwtUtil.generateToken(user.getEmail());
+            User user = userService.findByDisplayName(req.getDisplayName());
+            String token = jwtUtil.generateToken(user.getDisplayName());
             return ResponseEntity.ok(buildSession(token, user));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Credenciais inválidas"));

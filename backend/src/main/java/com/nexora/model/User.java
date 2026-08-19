@@ -9,7 +9,7 @@ import java.util.Set;
 @Entity
 @Table(name = "users", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"username", "tag"}),
-    @UniqueConstraint(columnNames = {"email"})
+    @UniqueConstraint(columnNames = {"display_name"})
 })
 @Data
 @NoArgsConstructor
@@ -27,13 +27,10 @@ public class User {
     @Column(nullable = false, length = 4)
     private String tag;
 
-    @Column(unique = true, nullable = false)
-    private String email;
-
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "display_name", length = 64)
+    @Column(name = "display_name", length = 64, nullable = false)
     private String displayName;
 
     @Column(name = "avatar_url", columnDefinition = "TEXT")

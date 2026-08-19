@@ -36,7 +36,7 @@ public class ChatController {
     public void handleMessage(@DestinationVariable Long channelId,
                                @Payload IncomingMessage incoming,
                                Principal principal) {
-        User user = userService.findByEmail(principal.getName());
+        User user = userService.findByDisplayName(principal.getName());
         Message saved = messageService.sendMessage(channelId, incoming.getContent(), user);
         MessageDTO dto = messageService.toDTO(saved);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);

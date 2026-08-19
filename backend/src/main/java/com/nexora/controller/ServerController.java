@@ -28,7 +28,7 @@ public class ServerController {
     private final OnlineStatusService onlineStatusService;
 
     private User currentUser(UserDetails ud) {
-        return userService.findByEmail(ud.getUsername());
+        return userService.findByDisplayName(ud.getUsername());
     }
 
     @PostMapping

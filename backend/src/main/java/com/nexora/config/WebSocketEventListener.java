@@ -21,10 +21,10 @@ public class WebSocketEventListener {
     @EventListener
     public void handleConnect(SessionConnectedEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-        String email = accessor.getUser() != null ? accessor.getUser().getName() : null;
-        if (email != null) {
+        String displayName = accessor.getUser() != null ? accessor.getUser().getName() : null;
+        if (displayName != null) {
             try {
-                var user = userService.findByEmail(email);
+                var user = userService.findByDisplayName(displayName);
                 onlineStatusService.setOnline(user.getId());
             } catch (Exception ignored) {}
         }
@@ -33,10 +33,10 @@ public class WebSocketEventListener {
     @EventListener
     public void handleDisconnect(SessionDisconnectEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-        String email = accessor.getUser() != null ? accessor.getUser().getName() : null;
-        if (email != null) {
+        String displayName = accessor.getUser() != null ? accessor.getUser().getName() : null;
+        if (displayName != null) {
             try {
-                var user = userService.findByEmail(email);
+                var user = userService.findByDisplayName(displayName);
                 onlineStatusService.setOffline(user.getId());
             } catch (Exception ignored) {}
         }

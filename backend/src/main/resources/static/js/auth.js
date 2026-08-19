@@ -22,7 +22,7 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: document.getElementById('loginEmail').value,
+                displayName: document.getElementById('loginDisplayName').value,
                 password: document.getElementById('loginPassword').value
             })
         });
@@ -46,7 +46,6 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
             body: JSON.stringify({
                 username: document.getElementById('regUsername').value,
                 displayName: document.getElementById('regDisplayName').value,
-                email: document.getElementById('regEmail').value,
                 password: document.getElementById('regPassword').value
             })
         });
