@@ -1,0 +1,4 @@
+electron-app/node_modules/
+electron-app/dist/
+electron-app/package-lock.json
+backend/src/main/resources/downloads/
