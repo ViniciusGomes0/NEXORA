@@ -1199,3 +1199,225 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════
+   MOBILE RESPONSIVE  (≤ 768px)
+   ═══════════════════════════════════════════ */
+
+/* Bottom nav — hidden on desktop */
+#mobileBottomNav { display: none; }
+
+@media (max-width: 768px) {
+
+    /* ── Layout base ── */
+    body {
+        overflow: hidden;
+        position: fixed;
+        inset: 0;
+    }
+
+    /* All panels become fixed full-screen layers */
+    #serverNav,
+    #channelSidebar,
+    #mainContent,
+    #membersSidebar {
+        position: fixed !important;
+        z-index: 50;
+        width: 100vw !important;
+        left: 0 !important;
+        right: 0 !important;
+    }
+
+    /* "Canais" panel: server strip (top 64px) + channel list (rest) */
+    #serverNav {
+        top: 0;
+        height: 64px !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        padding: 8px 12px !important;
+        border-bottom: 1px solid var(--border);
+        border-right: none !important;
+        scrollbar-width: none;
+        align-items: center;
+        gap: 10px !important;
+    }
+
+    #channelSidebar {
+        top: 64px !important;
+        bottom: 60px !important;
+        height: calc(100vh - 124px) !important;
+        border-right: none !important;
+        overflow-y: auto;
+    }
+
+    /* "Chat" panel */
+    #mainContent {
+        top: 0 !important;
+        bottom: 60px !important;
+        height: calc(100vh - 60px) !important;
+    }
+
+    /* "Membros" panel */
+    #membersSidebar {
+        top: 0 !important;
+        bottom: 60px !important;
+        height: calc(100vh - 60px) !important;
+        width: 100% !important;
+        padding-top: 0 !important;
+    }
+
+    /* mobile-hidden: hides a panel on mobile */
+    .mobile-hidden { display: none !important; }
+
+    /* ── Mobile voice bar (inside chat view) ── */
+    #mobileVoiceBar {
+        display: flex;
+        background: #1a2a1a;
+        border-bottom: 1px solid #2a3a2a;
+        padding: 8px 12px;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    #mobileVoiceBar.hidden { display: none !important; }
+
+    .mob-vb-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #4ade80;
+        flex-shrink: 0;
+        box-shadow: 0 0 6px #4ade8099;
+    }
+
+    .mob-vb-status {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 700;
+        color: #4ade80;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mob-vb-btn {
+        width: 40px; height: 40px;
+        border: none;
+        border-radius: 8px;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 18px;
+        flex-shrink: 0;
+        transition: background 0.15s;
+    }
+
+    .mob-vb-btn:hover { background: var(--bg-light); }
+    .mob-vb-btn.muted  { filter: grayscale(1) opacity(0.5); }
+    .mob-vb-leave { color: var(--danger) !important; }
+    .mob-vb-leave:hover { background: rgba(239,68,68,0.18) !important; }
+
+    /* ── Bottom navigation bar ── */
+    #mobileBottomNav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        height: 60px;
+        background: var(--bg-darkest);
+        border-top: 1px solid var(--border);
+        z-index: 200;
+    }
+
+    .mob-tab {
+        flex: 1;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: color 0.15s;
+        padding: 6px 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mob-tab svg { opacity: 0.6; transition: opacity 0.15s; }
+    .mob-tab.active { color: var(--accent); }
+    .mob-tab.active svg { opacity: 1; }
+
+    /* ── Touch-friendly sizes ── */
+    .ctrl-btn { width: 40px; height: 40px; font-size: 18px; }
+    .voice-bar-btn { height: 52px; }
+    .channel-item { padding: 10px 16px; font-size: 15px; min-height: 44px; }
+    .server-icon  { width: 44px; height: 44px; flex-shrink: 0; }
+    .member-item  { min-height: 44px; }
+    .ch-btn       { width: 32px; height: 32px; }
+
+    /* Prevent iOS auto-zoom on input focus */
+    .message-input-area input,
+    .modal-content input,
+    .modal-content select,
+    .profile-input { font-size: 16px !important; }
+
+    /* ── Members sidebar header ── */
+    #membersSidebar .sidebar-header {
+        padding: 16px;
+        font-size: 16px;
+    }
+
+    /* ── Modals: full-width on mobile ── */
+    .modal {
+        width: 94vw !important;
+        padding: 24px 18px !important;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    /* ── Home view: stack vertically ── */
+    .home-view    { padding: 24px 16px; gap: 28px; justify-content: flex-start; padding-top: 40px; }
+    .home-title   { font-size: 28px; }
+    .home-subtitle { font-size: 14px; }
+    .home-features { flex-direction: column; gap: 10px; }
+    .home-actions  { flex-direction: column; align-items: stretch; gap: 8px; }
+    .home-btn      { justify-content: center; }
+
+    /* ── Chat header: back button shown on mobile ── */
+    #mobileBackBtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px; height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 8px;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #mobileBackBtn:hover { background: var(--bg-hover); }
+
+    /* ── Video wrap: smaller on mobile ── */
+    .remote-video-wrap video { width: 100%; height: auto; }
+    .local-video { width: 120px; height: 90px; bottom: 72px; right: 12px; }
+
+} /* end @media */
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 769px) {
+    #mobileBackBtn { display: none !important; }
+    #mobileVoiceBar { display: none !important; }
+}

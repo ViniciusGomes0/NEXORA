@@ -176,6 +176,12 @@
 
         <div id="chatView" class="hidden">
             <div class="chat-header">
+                <!-- Back button (mobile only) -->
+                <button id="mobileBackBtn" onclick="showMobilePanel('canais')" title="Voltar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
                 <span class="hash">#</span>
                 <span id="channelName">canal</span>
                 <div class="header-actions">
@@ -188,6 +194,28 @@
                     <button class="btn-icon" onclick="openModal('createChannel')" title="Novo canal">+</button>
                 </div>
             </div>
+            <!-- Mobile voice bar (shows when connected to voice channel on mobile) -->
+            <div id="mobileVoiceBar" class="hidden">
+                <div class="mob-vb-status">
+                    <span class="mob-vb-dot"></span>
+                    Voz: <span id="mobVoiceChannelName"></span>
+                </div>
+                <button class="mob-vb-btn" id="mobMicBtn" onclick="toggleMic()" title="Microfone">🎙️</button>
+                <button class="mob-vb-btn" id="mobDeafBtn" onclick="toggleDeafen()" title="Fones">🎧</button>
+                <button class="mob-vb-btn mob-vb-leave" onclick="leaveVoice()" title="Sair da voz">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+                        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+                        <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+                        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+                        <path d="M8.51 16.37A5 5 0 0 1 10.2 19"/>
+                        <path d="M18.42 16.22A5 5 0 0 1 20 19"/>
+                        <path d="M14 20l-2 2-2-2"/>
+                    </svg>
+                </button>
+            </div>
+
             <div id="messageList" class="message-list"></div>
             <div class="message-input-area">
                 <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
@@ -350,6 +378,36 @@
             </div>
         </div>
     </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav id="mobileBottomNav">
+        <button class="mob-tab active" id="mobTabCanais" onclick="showMobilePanel('canais')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            <span>Canais</span>
+        </button>
+        <button class="mob-tab" id="mobTabChat" onclick="showMobilePanel('chat')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Chat</span>
+        </button>
+        <button class="mob-tab" id="mobTabMembros" onclick="showMobilePanel('membros')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span>Membros</span>
+        </button>
+    </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>

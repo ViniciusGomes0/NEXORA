@@ -1,6 +1,63 @@
 let currentServer = null;
 let currentChannel = null;
 
+// ── Mobile navigation ──
+function isMobile() { return window.innerWidth <= 768; }
+
+function showMobilePanel(panel) {
+    if (!isMobile()) return;
+    const allPanels = ['serverNav', 'channelSidebar', 'mainContent', 'membersSidebar'];
+    const visible = {
+        canais:  ['serverNav', 'channelSidebar'],
+        chat:    ['mainContent'],
+        membros: ['membersSidebar']
+    }[panel] || ['mainContent'];
+
+    allPanels.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (visible.includes(id)) el.classList.remove('mobile-hidden');
+        else el.classList.add('mobile-hidden');
+    });
+
+    document.querySelectorAll('.mob-tab').forEach(t => t.classList.remove('active'));
+    const tabIds = { canais: 'mobTabCanais', chat: 'mobTabChat', membros: 'mobTabMembros' };
+    const tabEl = document.getElementById(tabIds[panel]);
+    if (tabEl) tabEl.classList.add('active');
+}
+
+// Sync mobile voice bar with main voice bar state
+function syncMobileVoiceBar() {
+    const voiceBar = document.getElementById('voiceBar');
+    const mobileVoiceBar = document.getElementById('mobileVoiceBar');
+    if (!mobileVoiceBar) return;
+    if (voiceBar && !voiceBar.classList.contains('hidden')) {
+        mobileVoiceBar.classList.remove('hidden');
+        const channelNameEl = document.getElementById('voiceBarChannelName');
+        const mobChannelName = document.getElementById('mobVoiceChannelName');
+        if (channelNameEl && mobChannelName) mobChannelName.textContent = channelNameEl.textContent;
+        // sync mic state
+        const micBtn = document.getElementById('micBtn');
+        const mobMicBtn = document.getElementById('mobMicBtn');
+        if (micBtn && mobMicBtn) mobMicBtn.className = micBtn.className.replace('ctrl-btn', 'mob-vb-btn');
+        // sync deafen state
+        const deafBtn = document.getElementById('deafBtn');
+        const mobDeafBtn = document.getElementById('mobDeafBtn');
+        if (deafBtn && mobDeafBtn) mobDeafBtn.className = deafBtn.className.replace('ctrl-btn', 'mob-vb-btn');
+    } else {
+        mobileVoiceBar.classList.add('hidden');
+    }
+}
+
+window.addEventListener('resize', () => {
+    if (!isMobile()) {
+        ['serverNav', 'channelSidebar', 'mainContent', 'membersSidebar'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('mobile-hidden');
+        });
+    }
+});
+
 // Auth guard
 if (!getToken()) {
     window.location.href = 'index.html';
@@ -26,6 +83,20 @@ function syncHomeSidebarProfile() {
     await loadServers();
     connectWebSocket();
 
+    // Mobile: init panel and observe voice bar changes
+    if (isMobile()) {
+        showMobilePanel('canais');
+        const voiceBarEl = document.getElementById('voiceBar');
+        if (voiceBarEl) {
+            new MutationObserver(syncMobileVoiceBar).observe(voiceBarEl, { attributes: true, attributeFilter: ['class'] });
+        }
+        // Also observe mic/deafen buttons for state sync
+        const micBtnEl = document.getElementById('micBtn');
+        const deafBtnEl = document.getElementById('deafBtn');
+        if (micBtnEl) new MutationObserver(syncMobileVoiceBar).observe(micBtnEl, { attributes: true, attributeFilter: ['class'] });
+        if (deafBtnEl) new MutationObserver(syncMobileVoiceBar).observe(deafBtnEl, { attributes: true, attributeFilter: ['class'] });
+    }
+
     // Atualiza membros a cada 30s
     setInterval(async () => {
         if (currentServer) {
@@ -43,7 +114,14 @@ async function loadServers() {
         const btn = document.createElement('div');
         btn.className = 'server-icon';
         btn.title = s.name;
-        btn.innerHTML = `<span class="server-icon-text">${s.name[0].toUpperCase()}</span>`;
+        if (s.iconUrl) {
+            btn.style.backgroundImage = `url('${s.iconUrl}')`;
+            btn.style.backgroundSize = 'cover';
+            btn.style.backgroundPosition = 'center';
+            btn.innerHTML = `<span class="server-icon-text"></span>`;
+        } else {
+            btn.innerHTML = `<span class="server-icon-text">${s.name[0].toUpperCase()}</span>`;
+        }
         btn.onclick = () => selectServer(s);
         btn.dataset.serverId = s.id;
         list.appendChild(btn);
@@ -53,6 +131,8 @@ async function loadServers() {
 async function selectServer(server) {
     currentServer = server;
     document.getElementById('channelSidebar').classList.remove('home-mode');
+    // Mobile: show channel list while loading
+    if (isMobile()) showMobilePanel('canais');
     document.getElementById('currentServerName').textContent = server.name;
 
     // Mostra engrenagem só para o dono
@@ -109,6 +189,9 @@ async function openTextChannel(channel) {
     scrollToBottom();
 
     subscribeToChannel(channel.id);
+
+    // Mobile: switch to chat panel automatically
+    if (isMobile()) showMobilePanel('chat');
 }
 
 function appendMessage(msg) {
@@ -357,7 +440,28 @@ function openServerSettings() {
     document.getElementById('settingsServerName').value = currentServer.name;
     document.getElementById('settingsServerDesc').value = currentServer.description || '';
     document.getElementById('settingsInviteCode').textContent = currentServer.inviteCode;
+    document.getElementById('serverIconInput').value = '';
+    renderSettingsIconPreview(currentServer.iconUrl || '', currentServer.name);
     openModal('serverSettings');
+}
+
+function renderSettingsIconPreview(iconUrl, name) {
+    const el = document.getElementById('serverIconPreview');
+    if (iconUrl) {
+        el.style.backgroundImage = `url('${iconUrl}')`;
+        el.textContent = '';
+    } else {
+        el.style.backgroundImage = '';
+        el.textContent = name ? name[0].toUpperCase() : '?';
+    }
+}
+
+function previewServerIcon(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => renderSettingsIconPreview(e.target.result, '');
+    reader.readAsDataURL(file);
 }
 
 async function saveServerSettings() {
@@ -366,18 +470,31 @@ async function saveServerSettings() {
     const desc = document.getElementById('settingsServerDesc').value.trim();
     if (!name) return;
 
-    const res = await apiUpdateServer(currentServer.id, name, desc);
+    const preview = document.getElementById('serverIconPreview');
+    const iconUrl = preview.style.backgroundImage
+        ? preview.style.backgroundImage.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '')
+        : (currentServer.iconUrl || '');
+
+    const res = await apiUpdateServer(currentServer.id, name, desc, iconUrl);
     if (res.error) { showToast(res.error, 'error'); return; }
 
     currentServer = res;
     document.getElementById('currentServerName').textContent = res.name;
 
-    // Atualiza ícone na nav
     const navBtn = document.querySelector(`[data-server-id="${res.id}"]`);
     if (navBtn) {
         navBtn.title = res.name;
-        const span = navBtn.querySelector('.server-icon-text');
-        if (span) span.textContent = res.name[0].toUpperCase();
+        if (res.iconUrl) {
+            navBtn.style.backgroundImage = `url('${res.iconUrl}')`;
+            navBtn.style.backgroundSize = 'cover';
+            navBtn.style.backgroundPosition = 'center';
+            const span = navBtn.querySelector('.server-icon-text');
+            if (span) span.textContent = '';
+        } else {
+            navBtn.style.backgroundImage = '';
+            const span = navBtn.querySelector('.server-icon-text');
+            if (span) span.textContent = res.name[0].toUpperCase();
+        }
     }
 
     closeModal();
