@@ -6,7 +6,7 @@ import com.nexora.model.Message;
 import com.nexora.model.User;
 import com.nexora.repository.ChannelRepository;
 import com.nexora.repository.MessageRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -76,6 +76,7 @@ public class MessageService {
         return channelId;
     }
 
+    @Transactional
     public List<MessageDTO> getMessages(Long channelId, int page) {
         return messageRepository.findByChannelIdOrderByCreatedAtDesc(channelId, PageRequest.of(page, 50))
                 .stream()
