@@ -142,6 +142,18 @@ async function apiRegenerateInvite(serverId) {
     return safeJson(res);
 }
 
+async function apiDeleteMessage(messageId) {
+    const res = await fetch(API_BASE + `/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+    });
+    if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        return { error: body || `Erro ${res.status}` };
+    }
+    return {};
+}
+
 async function apiUploadImage(channelId, file) {
     const form = new FormData();
     form.append('image', file);

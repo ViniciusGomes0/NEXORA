@@ -143,13 +143,14 @@
     <main id="mainContent">
         <div id="homeView" class="home-view">
             <div class="home-bg">
+                <div class="home-grid"></div>
                 <div class="orb orb-1"></div>
                 <div class="orb orb-2"></div>
                 <div class="orb orb-3"></div>
             </div>
             <div class="home-hero">
                 <div class="home-logo">
-                    <svg width="72" height="72" viewBox="0 0 48 48" fill="none">
+                    <svg width="76" height="76" viewBox="0 0 48 48" fill="none">
                         <defs>
                             <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                                 <stop offset="0%" style="stop-color:#7c3aed"/>
@@ -160,8 +161,9 @@
                         <text x="24" y="31" text-anchor="middle" fill="white" font-size="20" font-weight="bold" font-family="sans-serif">N</text>
                     </svg>
                 </div>
+                <div class="home-badge"><span class="home-badge-dot"></span>Sua comunidade te espera</div>
                 <h1 class="home-title">Bem-vindo ao <span class="nexora-text">NEXORA</span></h1>
-                <p class="home-subtitle">Seu espaço para comunidades, conversas e conexões reais.<br>Selecione um servidor ou comece o seu agora.</p>
+                <p class="home-subtitle">Seu espaço para comunidades, conversas e conexões reais.<br>Selecione um servidor na barra lateral ou comece o seu agora.</p>
                 <div class="home-actions">
                     <button class="btn-primary home-btn" onclick="openModal('createServer')">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -171,7 +173,7 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                         Entrar com Convite
                     </button>
-                    <button class="btn-secondary home-btn" onclick="downloadApp()">
+                    <button class="btn-ghost home-btn" onclick="downloadApp()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Baixe o App
                     </button>
@@ -179,17 +181,23 @@
             </div>
             <div class="home-features">
                 <div class="feature-card">
-                    <div class="feature-icon">💬</div>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
                     <div class="feature-title">Mensagens em Tempo Real</div>
                     <div class="feature-desc">Converse em canais de texto organizados, rápidos e sempre sincronizados.</div>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🎙️</div>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    </div>
                     <div class="feature-title">Voz & Compartilhamento</div>
                     <div class="feature-desc">Entre em canais de voz e compartilhe sua tela com quem importa.</div>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🌐</div>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    </div>
                     <div class="feature-title">Comunidades Suas</div>
                     <div class="feature-desc">Crie servidores com canais, membros e convites personalizados.</div>
                 </div>
