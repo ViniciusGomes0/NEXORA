@@ -170,3 +170,19 @@ async function apiUploadImage(channelId, file) {
     if (!res.ok) return { error: `Erro ao enviar imagem (${res.status})` };
     return safeJson(res);
 }
+
+async function apiUploadFile(channelId, file, replyToMessageId) {
+    const form = new FormData();
+    form.append('file', file);
+    if (replyToMessageId) form.append('replyToMessageId', replyToMessageId);
+    const res = await fetch(API_BASE + `/channels/${channelId}/files`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: form
+    });
+    if (!res.ok) {
+        const j = await safeJson(res);
+        return { error: j.error || `Erro ao enviar arquivo (${res.status})` };
+    }
+    return safeJson(res);
+}

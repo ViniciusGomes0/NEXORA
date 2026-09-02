@@ -20,8 +20,14 @@ public class MessageDTO {
     private String authorAvatarUrl;
     private Long channelId;
     private LocalDateTime createdAt;
+    // Anexo de arquivo
+    private String fileUrl;
+    private String fileName;
+    private String fileType;
+    private Long fileSize;
     private Long replyToMessageId;
     private String replyToAuthorName;
     private String replyToContent;
     private String replyToImageUrl;
+    private String replyToFileName;
 }

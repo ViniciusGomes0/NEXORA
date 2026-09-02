@@ -22,6 +22,19 @@ public class Message {
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
 
+    /** Anexo de arquivo (PDF, doc, zip...). Nulo quando a mensagem não tem arquivo. */
+    @Column(name = "attachment_public_id", length = 36)
+    private String attachmentPublicId;
+
+    @Column(name = "file_name", length = 500)
+    private String fileName;
+
+    @Column(name = "file_type")
+    private String fileType;
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private User author;

@@ -47,6 +47,28 @@ public class MessageService {
         return toDTO(saved);
     }
 
+    /** Cria uma mensagem que carrega um anexo de arquivo. */
+    public MessageDTO sendFileMessageDTO(Long channelId, String publicId, String fileName,
+                                         String fileType, long fileSize,
+                                         Long replyToMessageId, User author) {
+        Channel channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
+        Message replyTo = replyToMessageId != null
+                ? messageRepository.findById(replyToMessageId).orElse(null)
+                : null;
+        Message msg = Message.builder()
+                .content("")
+                .author(author)
+                .channel(channel)
+                .replyToMessage(replyTo)
+                .attachmentPublicId(publicId)
+                .fileName(fileName)
+                .fileType(fileType)
+                .fileSize(fileSize)
+                .build();
+        return toDTO(messageRepository.save(msg));
+    }
+
     public Message sendMessage(Long channelId, String content, String imageUrl, Long replyToMessageId, User author) {
         Channel channel = channelRepository.findById(channelId)
                 .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
@@ -94,13 +116,18 @@ public class MessageService {
                 .authorDisplayName(msg.getAuthor().getDisplayName())
                 .authorAvatarUrl(msg.getAuthor().getAvatarUrl())
                 .channelId(msg.getChannel().getId())
+                .fileName(msg.getFileName())
+                .fileType(msg.getFileType())
+                .fileSize(msg.getFileSize())
+                .fileUrl(msg.getAttachmentPublicId() != null ? "/api/files/" + msg.getAttachmentPublicId() : null)
                 .createdAt(msg.getCreatedAt());
         if (msg.getReplyToMessage() != null) {
             Message r = msg.getReplyToMessage();
             b.replyToMessageId(r.getId())
              .replyToAuthorName(r.getAuthor().getDisplayName() != null ? r.getAuthor().getDisplayName() : r.getAuthor().getUsername())
              .replyToContent(r.getContent())
-             .replyToImageUrl(r.getImageUrl());
+             .replyToImageUrl(r.getImageUrl())
+             .replyToFileName(r.getFileName());
         }
         return b.build();
     }

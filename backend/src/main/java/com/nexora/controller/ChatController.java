@@ -1,12 +1,17 @@
 package com.nexora.controller;
 
 import com.nexora.dto.MessageDTO;
+import com.nexora.model.Attachment;
 import com.nexora.model.User;
+import com.nexora.repository.AttachmentRepository;
 import com.nexora.service.MessageService;
 import com.nexora.service.ServerService;
 import com.nexora.service.UserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -15,9 +20,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,6 +34,7 @@ public class ChatController {
     private final UserService userService;
     private final ServerService serverService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AttachmentRepository attachmentRepository;
 
     @GetMapping("/api/channels/{channelId}/messages")
     public ResponseEntity<?> getMessages(@PathVariable Long channelId,
@@ -68,6 +76,67 @@ public class ChatController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
         }
+    }
+
+    /** Upload de arquivo qualquer (PDF, docs, zip...). Sem limite de tipo. */
+    @PostMapping("/api/channels/{channelId}/files")
+    public ResponseEntity<?> uploadFile(@PathVariable Long channelId,
+                                        @RequestParam("file") MultipartFile file,
+                                        @RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
+                                        @AuthenticationPrincipal UserDetails ud) {
+        try {
+            User user = userService.findByDisplayName(ud.getUsername());
+            serverService.assertMemberByChannel(channelId, user);
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("error", "Arquivo vazio"));
+            }
+
+            String original = file.getOriginalFilename();
+            String name = (original == null || original.isBlank()) ? "arquivo" : original.replaceAll("[\\r\\n\"]", "").trim();
+            if (name.length() > 500) name = name.substring(0, 500);
+            String type = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+
+            Attachment att = Attachment.builder()
+                    .publicId(UUID.randomUUID().toString())
+                    .fileName(name)
+                    .contentType(type)
+                    .fileSize(file.getSize())
+                    .data(file.getBytes())
+                    .build();
+            attachmentRepository.save(att);
+
+            MessageDTO dto = messageService.sendFileMessageDTO(
+                    channelId, att.getPublicId(), name, type, att.getFileSize(), replyToMessageId, user);
+            messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
+            return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** Download / preview de um anexo pelo id público. */
+    @GetMapping("/api/files/{publicId}")
+    public ResponseEntity<?> downloadFile(@PathVariable String publicId) {
+        return attachmentRepository.findByPublicId(publicId)
+                .<ResponseEntity<?>>map(att -> {
+                    MediaType mt;
+                    try { mt = MediaType.parseMediaType(att.getContentType()); }
+                    catch (Exception e) { mt = MediaType.APPLICATION_OCTET_STREAM; }
+                    // imagens e PDF abrem no navegador; o resto baixa
+                    boolean inline = att.getContentType() != null &&
+                            (att.getContentType().startsWith("image/") || att.getContentType().equals("application/pdf"));
+                    ContentDisposition cd = ContentDisposition
+                            .builder(inline ? "inline" : "attachment")
+                            .filename(att.getFileName(), StandardCharsets.UTF_8)
+                            .build();
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
+                            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
+                            .contentType(mt)
+                            .contentLength(att.getFileSize())
+                            .body(att.getData());
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/api/messages/{messageId}")

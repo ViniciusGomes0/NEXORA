@@ -253,7 +253,7 @@ function setReplyingTo(msg) {
     if (msg) {
         const name = msg.authorDisplayName || msg.authorUsername || '?';
         label.innerHTML = `Respondendo para <span class="reply-bar-name">${escapeHtml(name)}</span>`;
-        preview.textContent = msg.content || (msg.imageUrl ? '[imagem]' : '');
+        preview.textContent = msg.content || (msg.imageUrl ? '[imagem]' : (msg.fileName ? '📎 ' + msg.fileName : ''));
         bar.classList.remove('hidden');
         document.getElementById('messageInput').focus();
     } else {
@@ -326,11 +326,14 @@ function appendMessage(msg) {
     const imageHtml = safeImg
         ? `<div class="msg-image-wrap"><img class="msg-image" src="${safeImg}" alt="imagem" loading="lazy" onclick="openImageViewer(this.src)" onerror="retryImageMime(this)"></div>`
         : '';
+    const fileHtml = msg.fileUrl ? renderFileCard(msg) : '';
 
     let replyHtml = '';
     if (msg.replyToMessageId) {
         const rAuthor = escapeHtml(msg.replyToAuthorName || '?');
-        const rText = msg.replyToContent ? escapeHtml(msg.replyToContent) : (msg.replyToImageUrl ? '[imagem]' : '');
+        const rText = msg.replyToContent ? escapeHtml(msg.replyToContent)
+            : (msg.replyToImageUrl ? '[imagem]'
+            : (msg.replyToFileName ? '📎 ' + escapeHtml(msg.replyToFileName) : ''));
         replyHtml = `
             <div class="msg-reply-quote" data-reply-to="${msg.replyToMessageId}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
@@ -365,7 +368,7 @@ function appendMessage(msg) {
                     <span class="msg-author">${escapeHtml(name)}</span>
                     <span class="msg-time">${time}</span>
                 </div>
-                ${textHtml}${imageHtml}
+                ${textHtml}${imageHtml}${fileHtml}
             </div>
             <div class="msg-actions">
                 <button class="msg-action-btn msg-reply-btn" title="Responder">
@@ -478,6 +481,64 @@ async function sendImage(event) {
     if (!file || !currentChannel) return;
     const res = await apiUploadImage(currentChannel.id, file);
     if (res.error) showToast(res.error, 'error');
+}
+
+// Envio de arquivo genérico (PDF, docs, zip, etc.). Imagens caem no fluxo
+// de imagem para aparecerem inline.
+async function sendFile(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file || !currentChannel) return;
+    if (file.type && file.type.startsWith('image/')) {
+        const r = await apiUploadImage(currentChannel.id, file);
+        if (r.error) showToast(r.error, 'error');
+        return;
+    }
+    showToast('Enviando arquivo…');
+    const replyId = replyingTo ? replyingTo.id : null;
+    const res = await apiUploadFile(currentChannel.id, file, replyId);
+    if (res.error) showToast(res.error, 'error');
+    else setReplyingTo(null);
+}
+
+const FILE_ORIGIN = API_BASE.replace(/\/api$/, '');
+
+function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    const u = ['KB', 'MB', 'GB', 'TB'];
+    let i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+    return n.toFixed(n < 10 ? 1 : 0) + ' ' + u[i];
+}
+
+function fileExtLabel(name, type) {
+    const m = /\.([a-z0-9]{1,6})$/i.exec(name || '');
+    if (m) return m[1].toUpperCase();
+    if (type && type.includes('/')) return type.split('/')[1].slice(0, 4).toUpperCase();
+    return 'FILE';
+}
+
+function renderFileCard(msg) {
+    const name = escapeHtml(msg.fileName || 'arquivo');
+    const size = formatBytes(msg.fileSize);
+    const ext = escapeHtml(fileExtLabel(msg.fileName, msg.fileType));
+    const url = FILE_ORIGIN + (msg.fileUrl || '');
+    const isPdf = (msg.fileType || '').includes('pdf') || /\.pdf$/i.test(msg.fileName || '');
+    return `
+        <a class="msg-file${isPdf ? ' is-pdf' : ''}" href="${url}" target="_blank" rel="noopener" download="${name}">
+            <span class="msg-file-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span class="msg-file-ext">${ext}</span>
+            </span>
+            <span class="msg-file-meta">
+                <span class="msg-file-name">${name}</span>
+                <span class="msg-file-size">${size}</span>
+            </span>
+            <span class="msg-file-dl">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </span>
+        </a>`;
 }
 
 document.getElementById('messageInput').addEventListener('keydown', e => {
