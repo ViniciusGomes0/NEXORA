@@ -131,9 +131,10 @@ public class ChatController {
                     MediaType mt;
                     try { mt = MediaType.parseMediaType(att.getContentType()); }
                     catch (Exception e) { mt = MediaType.APPLICATION_OCTET_STREAM; }
-                    // imagens e PDF abrem no navegador; o resto baixa
-                    boolean inline = att.getContentType() != null &&
-                            (att.getContentType().startsWith("image/") || att.getContentType().equals("application/pdf"));
+                    // imagens, áudio, vídeo e PDF abrem/tocam no navegador; o resto baixa
+                    String ct = att.getContentType() == null ? "" : att.getContentType();
+                    boolean inline = ct.startsWith("image/") || ct.startsWith("audio/")
+                            || ct.startsWith("video/") || ct.equals("application/pdf");
                     ContentDisposition cd = ContentDisposition
                             .builder(inline ? "inline" : "attachment")
                             .filename(att.getFileName(), StandardCharsets.UTF_8)
