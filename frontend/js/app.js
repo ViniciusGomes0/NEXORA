@@ -324,7 +324,7 @@ function appendMessage(msg) {
     const textHtml = msg.content ? `<div class="msg-content">${formatMentions(msg.content)}</div>` : '';
     const safeImg = safeImageUrl(msg.imageUrl);
     const imageHtml = safeImg
-        ? `<div class="msg-image-wrap"><img class="msg-image" src="${safeImg}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
+        ? `<div class="msg-image-wrap"><img class="msg-image" src="${safeImg}" alt="imagem" loading="lazy" onclick="openImageViewer(this.src)" onerror="retryImageMime(this)"></div>`
         : '';
 
     let replyHtml = '';
@@ -427,6 +427,18 @@ function safeImageUrl(url) {
     if (/^https?:\/\//i.test(s)) return s;
     if (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,[a-z0-9+/=\s]+$/i.test(s)) return s;
     return '';
+}
+
+// Recupera imagens antigas salvas com o MIME errado (ex.: GIF gravado como
+// image/jpeg). Tenta os outros tipos uma vez cada antes de desistir.
+function retryImageMime(img) {
+    const m = /^data:image\/([a-z]+);base64,(.*)$/is.exec(img.src);
+    if (!m) return;
+    const tries = ['gif', 'png', 'webp', 'jpeg'].filter(t => t !== m[1].toLowerCase());
+    const i = Number(img.dataset.mimeTry || 0);
+    if (i >= tries.length) { img.onerror = null; img.classList.add('msg-image-broken'); return; }
+    img.dataset.mimeTry = i + 1;
+    img.src = `data:image/${tries[i]};base64,${m[2]}`;
 }
 
 function scrollToBottom() {

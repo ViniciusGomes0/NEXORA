@@ -534,6 +534,17 @@ body {
 .msg-content { font-size: 15px; color: var(--text-primary); margin-top: 2px; line-height: 1.55; word-break: break-word; }
 
 .msg-image-wrap { margin-top: 6px; }
+.msg-image-broken {
+    width: 200px; height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-hover);
+    border: 1px dashed var(--border);
+    position: relative;
+}
+.msg-image-broken::after {
+    content: "🖼️ imagem indisponível";
+    font-size: 12px; color: var(--text-muted);
+}
 .msg-image {
     max-width: 360px;
     max-height: 300px;

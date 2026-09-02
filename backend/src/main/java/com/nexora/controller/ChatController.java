@@ -58,8 +58,9 @@ public class ChatController {
         try {
             User user = userService.findByDisplayName(ud.getUsername());
             serverService.assertMemberByChannel(channelId, user);
-            String mime = sanitizeImageMime(file.getContentType());
-            String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+            byte[] bytes = file.getBytes();
+            String mime = detectImageMime(bytes, file.getContentType());
+            String base64 = Base64.getEncoder().encodeToString(bytes);
             String imageUrl = "data:" + mime + ";base64," + base64;
             MessageDTO dto = messageService.sendMessageDTO(channelId, "", imageUrl, null, user);
             messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
@@ -83,6 +84,35 @@ public class ChatController {
         User user = userService.findByDisplayName(principal.getName());
         serverService.assertMemberByChannel(channelId, user);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId + "/typing", principal.getName());
+    }
+
+    /**
+     * Detecta o tipo real da imagem pelos bytes mágicos (assinatura do arquivo).
+     * Muitas galerias (principalmente no celular) enviam GIF/PNG com
+     * Content-Type errado ou "application/octet-stream", o que fazia a imagem
+     * ser salva como image/jpeg e não renderizar. Aqui a assinatura tem
+     * prioridade; o Content-Type declarado é só fallback.
+     */
+    private static String detectImageMime(byte[] b, String declared) {
+        if (b != null && b.length >= 12) {
+            // GIF: "GIF87a" / "GIF89a"
+            if (b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8')
+                return "image/gif";
+            // PNG: 89 50 4E 47 0D 0A 1A 0A
+            if ((b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G')
+                return "image/png";
+            // JPEG: FF D8 FF
+            if ((b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF)
+                return "image/jpeg";
+            // WEBP: "RIFF"...."WEBP"
+            if (b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                    && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P')
+                return "image/webp";
+            // BMP: "BM"
+            if (b[0] == 'B' && b[1] == 'M')
+                return "image/bmp";
+        }
+        return sanitizeImageMime(declared);
     }
 
     /** Só permite tipos de imagem conhecidos; qualquer outra coisa vira image/jpeg. */
