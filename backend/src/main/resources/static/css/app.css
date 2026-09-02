@@ -72,6 +72,49 @@ body {
 .server-icon.add-server { background: var(--bg-medium); color: #4ade80; font-size: 28px; }
 .server-icon.add-server:hover { background: #4ade80; color: white; }
 
+/* ── Badge de mensagens não lidas (estilo Discord) ── */
+#serverList .server-icon { overflow: visible; }
+
+.server-badge {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f23f42;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    border-radius: 999px;
+    border: 3px solid var(--bg-darkest);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+    pointer-events: none;
+    animation: badge-pop 0.18s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+@keyframes badge-pop {
+    from { transform: scale(0); }
+    to   { transform: scale(1); }
+}
+
+/* indicador branco à esquerda quando há não lidas */
+#serverList .server-icon.has-unread::after {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #fff;
+}
+
 .nav-divider {
     width: 32px;
     height: 2px;
@@ -3000,59 +3043,78 @@ body {
    ═══════════════════════════════════════════════════════════════ */
 .modal-overlay { background: rgba(6,6,14,0.72); backdrop-filter: blur(4px); }
 
-.modal:has(#modal-serverSettings:not(.hidden)) { overflow: hidden; padding: 32px; }
-
-#modal-serverSettings {
-    /* neutraliza o padding do .modal para desenhar seções próprias */
-    margin: -32px;
-    max-height: 88vh;
+/* Quando o dialog de configurações está aberto: sem padding próprio do .modal
+   (as seções controlam o espaçamento), cantos arredondados preservados e
+   rolagem interna se o conteúdo passar da altura da tela. */
+.modal:has(#modal-serverSettings:not(.hidden)) {
+    padding: 0;
+    overflow: hidden;
+    width: 460px;
+}
+.modal:has(#modal-serverSettings:not(.hidden)) #modal-serverSettings {
+    display: flex;
+    flex-direction: column;
+    max-height: min(86vh, 760px);
     overflow-y: auto;
+    overflow-x: hidden;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
 }
 
-/* Cabeçalho com faixa em gradiente */
+/* ── Cabeçalho em gradiente (full-bleed) ── */
 #modal-serverSettings h3 {
     margin: 0;
-    padding: 26px 32px 46px;
+    padding: 24px 28px 44px;
     font-size: 19px;
+    font-weight: 700;
     letter-spacing: -0.2px;
-    background:
-        radial-gradient(circle at 18% 0%, rgba(255,255,255,0.16), transparent 46%),
-        linear-gradient(135deg, #a855f7, #7c3aed 52%, #4f46e5);
     color: #fff;
+    text-align: left;
+    background:
+        radial-gradient(circle at 18% -20%, rgba(255,255,255,0.22), transparent 50%),
+        linear-gradient(135deg, #a855f7, #7c3aed 52%, #4f46e5);
 }
 
-/* Avatar sobreposto à faixa */
+/* ── Avatar sobreposto à faixa ── */
 #modal-serverSettings .server-icon-upload-area {
-    width: 88px;
-    height: 88px;
-    margin: -52px auto 6px;
-    border-radius: 24px;
+    width: 84px;
+    height: 84px;
+    margin: -42px auto 4px;
+    border-radius: 22px;
     border: 4px solid var(--bg-medium);
-    box-shadow: 0 0 0 4px rgba(124,58,237,0.30), 0 14px 30px -10px rgba(0,0,0,0.6);
+    box-shadow: 0 0 0 4px rgba(124,58,237,0.30), 0 14px 30px -10px rgba(0,0,0,0.55);
     transition: box-shadow 0.2s, transform 0.2s;
+    position: relative;
+    z-index: 1;
 }
-#modal-serverSettings .server-icon-upload-area:hover { transform: translateY(-2px); box-shadow: 0 0 0 4px rgba(168,85,247,0.55), 0 14px 30px -10px rgba(0,0,0,0.6); }
-#modal-serverSettings .server-icon-preview { border-radius: 20px; font-size: 30px; }
-#modal-serverSettings .server-icon-upload-overlay { border-radius: 20px; }
+#modal-serverSettings .server-icon-upload-area:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 4px rgba(168,85,247,0.55), 0 14px 30px -10px rgba(0,0,0,0.55);
+}
+#modal-serverSettings .server-icon-preview,
+#modal-serverSettings .server-icon-upload-overlay { border-radius: 18px; }
+#modal-serverSettings .server-icon-preview { font-size: 28px; }
 
-/* Corpo com respiro lateral */
-#modal-serverSettings > label,
-#modal-serverSettings > input,
-#modal-serverSettings > div:not(.danger-zone),
-#modal-serverSettings > hr,
-#modal-serverSettings > .modal-actions { margin-left: 32px; margin-right: 32px; }
+/* ── Corpo: um respiro lateral consistente para tudo ── */
+#modal-serverSettings > *:not(h3):not(.server-icon-upload-area):not(input[type=file]) {
+    margin-left: 28px;
+    margin-right: 28px;
+}
+#modal-serverSettings > *:last-child { margin-bottom: 24px; }
 
 #modal-serverSettings > label {
     font-size: 11px;
+    font-weight: 700;
     letter-spacing: 0.6px;
     color: var(--text-secondary);
-    margin-top: 18px;
+    margin-top: 16px;
+    margin-bottom: 6px;
 }
-#modal-serverSettings > label:first-of-type { margin-top: 4px; }
+#modal-serverSettings > label:first-of-type { margin-top: 8px; }
 
+/* Inputs: largura = 100% do próprio bloco (já contido pelas margens) */
 #modal-serverSettings input[type=text] {
+    width: 100%;
     padding: 12px 14px;
     background: var(--bg-darkest);
     border: 1px solid var(--border);
@@ -3066,61 +3128,91 @@ body {
     box-shadow: 0 0 0 3px rgba(124,58,237,0.22);
 }
 
-/* Divisores viram espaçamento sutil */
+/* Divisores discretos */
 #modal-serverSettings > hr {
     border: none;
     border-top: 1px solid var(--border);
     opacity: 0.6;
-    margin-top: 22px !important;
-    margin-bottom: 4px !important;
+    margin-top: 20px !important;
+    margin-bottom: 2px !important;
 }
 
-/* Bloco do código de convite */
+/* Linha do código de convite */
 #modal-serverSettings > div[style*="display:flex"] {
+    display: flex !important;
+    align-items: center;
     gap: 8px !important;
     margin-top: 6px;
 }
 #modal-serverSettings .invite-box {
-    padding: 13px 14px;
-    font-size: 17px;
-    letter-spacing: 2.5px;
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    font-size: 16px;
+    letter-spacing: 2px;
+    text-align: center;
     background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.04));
     border: 1px solid rgba(124,58,237,0.35);
     border-radius: 10px;
     color: #c4b5fd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-#modal-serverSettings .btn-secondary {
-    padding: 12px 16px;
+#modal-serverSettings > div[style*="display:flex"] .btn-secondary {
+    flex-shrink: 0;
+    padding: 11px 14px;
     border-radius: 10px;
     background: var(--bg-hover);
 }
-#modal-serverSettings .btn-secondary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+#modal-serverSettings .btn-secondary:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
 
-/* Ações */
+/* Ações principais */
 #modal-serverSettings .modal-actions {
-    margin-top: 22px;
-    padding-bottom: 4px;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
 }
-#modal-serverSettings .btn-primary,
+#modal-serverSettings .modal-actions .btn-primary,
 #modal-serverSettings .modal-actions .btn-secondary {
-    padding: 11px 22px;
+    flex: 1;
+    max-width: 160px;
+    padding: 11px 20px;
     border-radius: 10px;
+    text-align: center;
 }
-#modal-serverSettings .btn-primary { box-shadow: 0 8px 22px -8px rgba(124,58,237,0.7); }
+#modal-serverSettings .modal-actions .btn-primary {
+    box-shadow: 0 8px 22px -8px rgba(124,58,237,0.7);
+}
 
-/* Zona de perigo — card destacado no rodapé */
+/* Zona de perigo — card no rodapé */
 #modal-serverSettings .danger-zone {
-    margin: 8px 24px 24px;
+    margin-top: 10px;
     padding: 14px 16px;
     border-radius: 12px;
+    gap: 12px;
     background: rgba(239,68,68,0.07);
     border: 1px solid rgba(239,68,68,0.28);
 }
 #modal-serverSettings .danger-zone-label { font-size: 11px; letter-spacing: 0.5px; }
 #modal-serverSettings .btn-danger {
+    flex-shrink: 0;
     padding: 9px 16px;
     border-radius: 8px;
     box-shadow: 0 6px 16px -6px rgba(239,68,68,0.6);
     transition: background 0.15s, transform 0.1s, box-shadow 0.2s;
 }
-#modal-serverSettings .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -6px rgba(239,68,68,0.7); }
+#modal-serverSettings .btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -6px rgba(239,68,68,0.7);
+}
+
+/* Confirmação de exclusão (mesmo .modal) fica com o padding normal de volta */
+.modal:has(#modal-serverSettings:not(.hidden)) #modal-confirmDeleteServer {
+    padding: 28px;
+}
+#modal-confirmDeleteServer { margin: 0; }

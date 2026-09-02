@@ -14,7 +14,13 @@ function connectWebSocket() {
 
     stompClient.connect(
         { Authorization: 'Bearer ' + getToken() },
-        () => { console.log('WebSocket connected'); },
+        () => {
+            console.log('WebSocket connected');
+            // Reassina os tópicos de canal aberto e de notificações
+            if (typeof currentChannel !== 'undefined' && currentChannel) subscribeToChannel(currentChannel.id);
+            if (typeof currentServer !== 'undefined' && currentServer) subscribeToServer(currentServer.id);
+            if (typeof refreshUnreadSubscriptions === 'function') refreshUnreadSubscriptions().catch(() => {});
+        },
         (err) => { console.error('WS error:', err); setTimeout(connectWebSocket, 3000); }
     );
 }

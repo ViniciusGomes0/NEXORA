@@ -117,8 +117,10 @@ function syncHomeSidebarProfile() {
     document.getElementById('channelSidebar').classList.add('home-mode');
     syncHomeSidebarProfile();
 
+    loadUnread();
     await loadServers();
     connectWebSocket();
+    scheduleUnreadRefresh();
 
     // Mobile: init panels and set up observers
     if (isMobile()) {
@@ -169,6 +171,8 @@ async function loadServers() {
         btn.dataset.serverId = s.id;
         list.appendChild(btn);
     });
+    renderServerBadges();
+    scheduleUnreadRefresh();
 }
 
 async function selectServer(server) {
@@ -237,6 +241,7 @@ async function openTextChannel(channel) {
     scrollToBottom();
 
     subscribeToChannel(channel.id);
+    markChannelRead(channel.id);
 
     // Mobile: switch to chat panel automatically
     if (isMobile()) showMobilePanel('chat');
@@ -606,6 +611,115 @@ document.getElementById('messageInput').addEventListener('paste', e => {
     }
 });
 
+// ══════════════════════════════════════════════════════════════
+//  NOTIFICAÇÕES — contador de mensagens não lidas por servidor
+// ══════════════════════════════════════════════════════════════
+let unreadByChannel = {};   // { channelId: quantidade }
+let channelToServer = {};   // { channelId: serverId }
+const _unreadSubs = [];     // assinaturas STOMP dos canais
+let _unreadSubTimer = null;
+
+function _unreadKey() {
+    const u = getUser() || {};
+    return 'nexora_unread_' + (u.id || 'anon');
+}
+function loadUnread() {
+    try { unreadByChannel = JSON.parse(localStorage.getItem(_unreadKey()) || '{}') || {}; }
+    catch { unreadByChannel = {}; }
+}
+function saveUnread() {
+    try { localStorage.setItem(_unreadKey(), JSON.stringify(unreadByChannel)); } catch {}
+}
+
+function serverUnreadTotal(serverId) {
+    let n = 0;
+    for (const [cid, c] of Object.entries(unreadByChannel)) {
+        if (String(channelToServer[cid]) === String(serverId)) n += c;
+    }
+    return n;
+}
+
+function renderServerBadges() {
+    document.querySelectorAll('#serverList .server-icon').forEach(btn => {
+        const sid = btn.dataset.serverId;
+        const n = serverUnreadTotal(sid);
+        let badge = btn.querySelector('.server-badge');
+        if (n > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'server-badge';
+                btn.appendChild(badge);
+            }
+            badge.textContent = n > 99 ? '99+' : n;
+            btn.classList.add('has-unread');
+        } else {
+            if (badge) badge.remove();
+            btn.classList.remove('has-unread');
+        }
+    });
+}
+
+function markChannelRead(channelId) {
+    if (channelId == null) return;
+    if (unreadByChannel[channelId]) {
+        delete unreadByChannel[channelId];
+        saveUnread();
+        renderServerBadges();
+    }
+}
+
+function onAnyChannelMessage(msg, channelId) {
+    const myId = (getUser() || {}).id;
+    if (msg.authorId != null && String(msg.authorId) === String(myId)) return; // minhas msgs não contam
+    const viewingThis = currentChannel && String(currentChannel.id) === String(channelId) && document.hasFocus();
+    if (viewingThis) return;
+    unreadByChannel[channelId] = (unreadByChannel[channelId] || 0) + 1;
+    saveUnread();
+    renderServerBadges();
+}
+
+async function refreshUnreadSubscriptions() {
+    _unreadSubs.forEach(s => { try { s.unsubscribe(); } catch {} });
+    _unreadSubs.length = 0;
+    channelToServer = {};
+
+    const servers = await fetchMyServers();
+    const validChannelIds = new Set();
+
+    for (const s of servers) {
+        let channels = [];
+        try { channels = await fetchChannels(s.id); } catch { channels = []; }
+        for (const ch of channels) {
+            if (ch.type !== 'TEXT') continue;
+            channelToServer[ch.id] = s.id;
+            validChannelIds.add(String(ch.id));
+            if (stompClient && stompClient.connected) {
+                try {
+                    const sub = stompClient.subscribe(`/topic/channel/${ch.id}`, frame => {
+                        try { onAnyChannelMessage(JSON.parse(frame.body), ch.id); } catch {}
+                    });
+                    _unreadSubs.push(sub);
+                } catch {}
+            }
+        }
+    }
+
+    // limpa contadores de canais/servidores que não existem mais
+    for (const cid of Object.keys(unreadByChannel)) {
+        if (!validChannelIds.has(String(cid))) delete unreadByChannel[cid];
+    }
+    saveUnread();
+    renderServerBadges();
+}
+
+function scheduleUnreadRefresh() {
+    clearTimeout(_unreadSubTimer);
+    _unreadSubTimer = setTimeout(() => { refreshUnreadSubscriptions().catch(() => {}); }, 300);
+}
+
+// Ao focar a aba, o canal aberto conta como lido
+window.addEventListener('focus', () => { if (currentChannel) markChannelRead(currentChannel.id); });
+
 const FILE_ORIGIN = API_BASE.replace(/\/api$/, '');
 
 function formatBytes(n) {
@@ -969,6 +1083,8 @@ async function refreshChannels() {
             addSidebarVoiceMember(currentVoiceChannel, user.displayName || user.username, 'vp-local');
         }
     }
+
+    scheduleUnreadRefresh();
 }
 
 function showHome() {
