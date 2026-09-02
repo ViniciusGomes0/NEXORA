@@ -2012,40 +2012,53 @@ body {
 }
 
 /* ── Dialog de Perfil ── */
-.profile-dialog { padding: 0; overflow: hidden; }
+.profile-dialog {
+    padding: 0;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,0.7);
+    max-width: 420px;
+}
 
 .profile-dialog-banner {
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
-    padding: 28px 24px 48px;
+    background:
+        radial-gradient(circle at 20% 0%, rgba(255,255,255,0.22), transparent 45%),
+        linear-gradient(135deg, #a855f7, #7c3aed 50%, #4f46e5);
+    padding: 30px 24px 46px;
     position: relative;
 }
 
 .profile-avatar-wrap {
     position: absolute;
-    bottom: -36px;
-    left: 24px;
-    width: 80px;
-    height: 80px;
+    bottom: -42px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 92px;
+    height: 92px;
     border-radius: 50%;
     cursor: pointer;
 }
 
 .profile-avatar-large {
-    width: 80px;
-    height: 80px;
+    width: 92px;
+    height: 92px;
     border-radius: 50%;
     background: var(--accent);
     border: 4px solid var(--bg-medium);
+    box-shadow: 0 0 0 4px rgba(124,58,237,0.35), 0 12px 28px -8px rgba(0,0,0,0.6);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 700;
     color: white;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    transition: box-shadow 0.2s;
 }
+.profile-avatar-wrap:hover .profile-avatar-large { box-shadow: 0 0 0 4px rgba(168,85,247,0.6), 0 12px 28px -8px rgba(0,0,0,0.6); }
 
 .profile-avatar-overlay {
     position: absolute;
@@ -2068,25 +2081,33 @@ body {
 .profile-avatar-wrap:hover .profile-avatar-overlay { opacity: 1; }
 
 .profile-dialog-body {
-    padding: 52px 24px 24px;
+    padding: 58px 26px 24px;
+    text-align: center;
 }
 
 .profile-username {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 800;
+    letter-spacing: -0.3px;
     color: var(--text-primary);
 }
 
 .profile-tag {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 4px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-top: 8px;
 }
 
 .profile-divider {
     border: none;
     border-top: 1px solid var(--border);
-    margin: 16px 0;
+    margin: 20px 0 18px;
 }
 
 .profile-label {
@@ -2096,20 +2117,24 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-muted);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    text-align: left;
 }
 
 .profile-input {
     width: 100%;
-    padding: 10px 14px;
+    padding: 12px 14px;
     background: var(--bg-darkest);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     color: var(--text-primary);
     font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.profile-input:focus { outline: none; border-color: var(--accent); }
+.profile-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.25); }
+
+.profile-dialog .modal-actions { margin-top: 22px; }
 
 /* ── Toast ── */
 .toast {
