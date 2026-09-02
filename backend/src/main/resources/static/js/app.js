@@ -4,6 +4,13 @@ const serverIconCache = {};
 let serverMembers = [];
 let mentionSelectedIndex = -1;
 
+// Estado das notificações (não lidas). Declarado aqui no topo porque o
+// init() roda antes do bloco de código de notificações mais abaixo.
+let unreadByChannel = {};   // { channelId: quantidade }
+let channelToServer = {};   // { channelId: serverId }
+const _unreadSubs = [];     // assinaturas STOMP dos canais
+let _unreadSubTimer = null;
+
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
 
@@ -331,7 +338,8 @@ function appendMessage(msg) {
     const imageHtml = safeImg
         ? `<div class="msg-image-wrap"><img class="msg-image" src="${safeImg}" alt="imagem" loading="lazy" onclick="openImageViewer(this.src)" onerror="retryImageMime(this)"></div>`
         : '';
-    const fileHtml = msg.fileUrl ? renderFileCard(msg) : '';
+    const isAudioMsg = msg.fileUrl && (msg.fileType || '').startsWith('audio/');
+    const fileHtml = msg.fileUrl ? (isAudioMsg ? renderAudioPlayer(msg) : renderFileCard(msg)) : '';
 
     let replyHtml = '';
     if (msg.replyToMessageId) {
@@ -383,6 +391,9 @@ function appendMessage(msg) {
             </div>
         </div>
     `;
+
+    const audioWrap = div.querySelector('.msg-audio');
+    if (audioWrap) initAudioPlayer(audioWrap);
 
     div.querySelector('.msg-reply-btn').addEventListener('click', () => setReplyingTo(msg));
     if (isOwn) {
@@ -613,12 +624,9 @@ document.getElementById('messageInput').addEventListener('paste', e => {
 
 // ══════════════════════════════════════════════════════════════
 //  NOTIFICAÇÕES — contador de mensagens não lidas por servidor
+//  (o estado é declarado no topo do arquivo para não cair em TDZ
+//   quando o init() roda antes desta linha)
 // ══════════════════════════════════════════════════════════════
-let unreadByChannel = {};   // { channelId: quantidade }
-let channelToServer = {};   // { channelId: serverId }
-const _unreadSubs = [];     // assinaturas STOMP dos canais
-let _unreadSubTimer = null;
-
 function _unreadKey() {
     const u = getUser() || {};
     return 'nexora_unread_' + (u.id || 'anon');
@@ -758,6 +766,191 @@ function renderFileCard(msg) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </span>
         </a>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MENSAGEM DE VOZ — gravar e enviar áudio (estilo Discord)
+// ══════════════════════════════════════════════════════════════
+let _rec = null;            // MediaRecorder
+let _recStream = null;
+let _recChunks = [];
+let _recStart = 0;
+let _recTimer = null;
+let _recSend = false;
+const REC_MAX_SECONDS = 300;
+
+function pickAudioMime() {
+    const opts = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+    for (const o of opts) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(o)) return o;
+    }
+    return '';
+}
+
+async function toggleAudioRecord() {
+    if (_rec && _rec.state === 'recording') { sendAudioRecord(); return; }
+    if (!currentChannel) { showToast('Abra um canal de texto primeiro', 'error'); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+        showToast('Seu navegador não suporta gravação de áudio', 'error');
+        return;
+    }
+    try {
+        _recStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+    } catch {
+        showToast('Permita o acesso ao microfone para gravar', 'error');
+        return;
+    }
+    _recChunks = [];
+    _recSend = false;
+    const mime = pickAudioMime();
+    try {
+        _rec = new MediaRecorder(_recStream, mime ? { mimeType: mime, audioBitsPerSecond: 128000 } : undefined);
+    } catch {
+        _rec = new MediaRecorder(_recStream);
+    }
+    _rec.ondataavailable = e => { if (e.data && e.data.size) _recChunks.push(e.data); };
+    _rec.onstop = handleRecStop;
+    _rec.start();
+    _recStart = Date.now();
+    document.getElementById('recordBar').classList.remove('hidden');
+    document.getElementById('micRecordBtn').classList.add('recording');
+    updateRecTime();
+    _recTimer = setInterval(updateRecTime, 200);
+}
+
+function updateRecTime() {
+    const s = Math.floor((Date.now() - _recStart) / 1000);
+    const el = document.getElementById('recordTime');
+    if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    if (s >= REC_MAX_SECONDS) sendAudioRecord();
+}
+
+function cancelAudioRecord() {
+    if (!_rec) return;
+    _recSend = false;
+    try { _rec.stop(); } catch {}
+}
+
+function sendAudioRecord() {
+    if (!_rec) return;
+    _recSend = (Date.now() - _recStart) >= 700; // ignora toques acidentais < 0,7s
+    if (!_recSend) showToast('Gravação muito curta', 'error');
+    try { _rec.stop(); } catch {}
+}
+
+async function handleRecStop() {
+    clearInterval(_recTimer);
+    _recTimer = null;
+    document.getElementById('recordBar').classList.add('hidden');
+    document.getElementById('micRecordBtn').classList.remove('recording');
+    if (_recStream) { _recStream.getTracks().forEach(t => t.stop()); _recStream = null; }
+
+    const send = _recSend;
+    const chunks = _recChunks.slice();
+    _recChunks = [];
+    _rec = null;
+    if (!send || !chunks.length) return;
+
+    const type = chunks[0].type || 'audio/webm';
+    const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+    const blob = new Blob(chunks, { type });
+    const file = new File([blob], `Mensagem de voz.${ext}`, { type });
+
+    showToast('Enviando áudio…');
+    const replyId = replyingTo ? replyingTo.id : null;
+    const res = await apiUploadFile(currentChannel.id, file, '', replyId);
+    if (res.error) showToast(res.error, 'error');
+    else setReplyingTo(null);
+}
+
+// ── Player de áudio nas mensagens ───────────────────────────────
+function audioWaveBars(seed, n) {
+    let x = 0;
+    for (let i = 0; i < seed.length; i++) x = (x * 31 + seed.charCodeAt(i)) >>> 0;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+        x = (x * 1103515245 + 12345) >>> 0;
+        out.push(22 + (x % 78));
+    }
+    return out;
+}
+
+function renderAudioPlayer(msg) {
+    const url = FILE_ORIGIN + (msg.fileUrl || '');
+    const bars = audioWaveBars(String(msg.attachmentPublicId || msg.id || 'a'), 40)
+        .map(h => `<span style="height:${h}%"></span>`).join('');
+    return `
+        <div class="msg-audio" style="--prog:0%">
+            <button class="msg-audio-play" type="button" aria-label="Reproduzir">
+                <svg class="ico-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg class="ico-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            </button>
+            <div class="msg-audio-wave">
+                <div class="wave-layer wave-base">${bars}</div>
+                <div class="wave-layer wave-prog">${bars}</div>
+            </div>
+            <span class="msg-audio-time">0:00</span>
+            <a class="msg-audio-dl" href="${url}" target="_blank" rel="noopener" download="mensagem-de-voz.${(msg.fileType||'').includes('mp4')?'m4a':(msg.fileType||'').includes('ogg')?'ogg':'webm'}" title="Baixar">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+            <audio preload="metadata" src="${url}"></audio>
+        </div>`;
+}
+
+function initAudioPlayer(wrap) {
+    const audio = wrap.querySelector('audio');
+    const btn = wrap.querySelector('.msg-audio-play');
+    const wave = wrap.querySelector('.msg-audio-wave');
+    const timeEl = wrap.querySelector('.msg-audio-time');
+    const icoPlay = wrap.querySelector('.ico-play');
+    const icoPause = wrap.querySelector('.ico-pause');
+    const fmt = t => {
+        t = Math.max(0, Math.round(t || 0));
+        return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    };
+    let dur = 0;
+
+    audio.addEventListener('loadedmetadata', () => {
+        if (audio.duration === Infinity || isNaN(audio.duration)) {
+            // Workaround para webm gravado pelo MediaRecorder (duration = Infinity)
+            audio.currentTime = 1e101;
+            audio.addEventListener('timeupdate', function once() {
+                audio.removeEventListener('timeupdate', once);
+                audio.currentTime = 0;
+                dur = isFinite(audio.duration) ? audio.duration : 0;
+                if (dur) timeEl.textContent = fmt(dur);
+            });
+        } else {
+            dur = audio.duration;
+            timeEl.textContent = fmt(dur);
+        }
+    });
+
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.msg-audio audio').forEach(a => { if (a !== audio) a.pause(); });
+        if (audio.paused) audio.play(); else audio.pause();
+    });
+    audio.addEventListener('play', () => { icoPlay.hidden = true; icoPause.hidden = false; wrap.classList.add('playing'); });
+    audio.addEventListener('pause', () => { icoPlay.hidden = false; icoPause.hidden = true; wrap.classList.remove('playing'); });
+    audio.addEventListener('ended', () => {
+        audio.currentTime = 0;
+        wrap.style.setProperty('--prog', '0%');
+        timeEl.textContent = fmt(dur);
+    });
+    audio.addEventListener('timeupdate', () => {
+        const d = dur || audio.duration || 0;
+        const p = d ? Math.min(100, audio.currentTime / d * 100) : 0;
+        wrap.style.setProperty('--prog', p + '%');
+        timeEl.textContent = fmt(d ? d - audio.currentTime : audio.currentTime);
+    });
+    wave.addEventListener('click', e => {
+        const d = dur || audio.duration || 0;
+        if (!d) return;
+        const r = wave.getBoundingClientRect();
+        audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * d;
+    });
 }
 
 document.getElementById('messageInput').addEventListener('keydown', e => {

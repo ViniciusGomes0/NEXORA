@@ -4,6 +4,13 @@ const serverIconCache = {};
 let serverMembers = [];
 let mentionSelectedIndex = -1;
 
+// Estado das notificações (não lidas). Declarado aqui no topo porque o
+// init() roda antes do bloco de código de notificações mais abaixo.
+let unreadByChannel = {};   // { channelId: quantidade }
+let channelToServer = {};   // { channelId: serverId }
+const _unreadSubs = [];     // assinaturas STOMP dos canais
+let _unreadSubTimer = null;
+
 // ── Mobile navigation ──
 function isMobile() { return window.innerWidth <= 768; }
 
@@ -617,12 +624,9 @@ document.getElementById('messageInput').addEventListener('paste', e => {
 
 // ══════════════════════════════════════════════════════════════
 //  NOTIFICAÇÕES — contador de mensagens não lidas por servidor
+//  (o estado é declarado no topo do arquivo para não cair em TDZ
+//   quando o init() roda antes desta linha)
 // ══════════════════════════════════════════════════════════════
-let unreadByChannel = {};   // { channelId: quantidade }
-let channelToServer = {};   // { channelId: serverId }
-const _unreadSubs = [];     // assinaturas STOMP dos canais
-let _unreadSubTimer = null;
-
 function _unreadKey() {
     const u = getUser() || {};
     return 'nexora_unread_' + (u.id || 'anon');
