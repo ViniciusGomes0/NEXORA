@@ -62,6 +62,8 @@ public class ChatController {
     @PostMapping("/api/channels/{channelId}/images")
     public ResponseEntity<?> uploadImage(@PathVariable Long channelId,
                                          @RequestParam("image") MultipartFile file,
+                                         @RequestParam(value = "content", required = false) String content,
+                                         @RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
                                          @AuthenticationPrincipal UserDetails ud) {
         try {
             User user = userService.findByDisplayName(ud.getUsername());
@@ -70,7 +72,7 @@ public class ChatController {
             String mime = detectImageMime(bytes, file.getContentType());
             String base64 = Base64.getEncoder().encodeToString(bytes);
             String imageUrl = "data:" + mime + ";base64," + base64;
-            MessageDTO dto = messageService.sendMessageDTO(channelId, "", imageUrl, null, user);
+            MessageDTO dto = messageService.sendMessageDTO(channelId, cleanCaption(content), imageUrl, replyToMessageId, user);
             messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
@@ -78,10 +80,17 @@ public class ChatController {
         }
     }
 
+    private static String cleanCaption(String raw) {
+        if (raw == null) return "";
+        String v = raw.strip();
+        return v.length() > 2000 ? v.substring(0, 2000) : v;
+    }
+
     /** Upload de arquivo qualquer (PDF, docs, zip...). Sem limite de tipo. */
     @PostMapping("/api/channels/{channelId}/files")
     public ResponseEntity<?> uploadFile(@PathVariable Long channelId,
                                         @RequestParam("file") MultipartFile file,
+                                        @RequestParam(value = "content", required = false) String content,
                                         @RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
                                         @AuthenticationPrincipal UserDetails ud) {
         try {
@@ -106,7 +115,7 @@ public class ChatController {
             attachmentRepository.save(att);
 
             MessageDTO dto = messageService.sendFileMessageDTO(
-                    channelId, att.getPublicId(), name, type, att.getFileSize(), replyToMessageId, user);
+                    channelId, cleanCaption(content), att.getPublicId(), name, type, att.getFileSize(), replyToMessageId, user);
             messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
             return ResponseEntity.ok(dto);
         } catch (Exception e) {

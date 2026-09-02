@@ -462,11 +462,31 @@ function removeMessageFromDOM(messageId) {
     if (el) el.remove();
 }
 
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
-    if (!content || !currentChannel) return;
+    if (!currentChannel) return;
     const replyId = replyingTo ? replyingTo.id : null;
+
+    // Se há anexos na bandeja, envia eles (com a legenda no primeiro).
+    if (pendingAttachments.length) {
+        const files = pendingAttachments.slice();
+        clearPendingAttachments();
+        input.value = '';
+        setReplyingTo(null);
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            const caption = i === 0 ? content : '';
+            const isImg = f.type && f.type.startsWith('image/');
+            const res = isImg
+                ? await apiUploadImage(currentChannel.id, f, caption, replyId)
+                : await apiUploadFile(currentChannel.id, f, caption, replyId);
+            if (res.error) showToast(res.error, 'error');
+        }
+        return;
+    }
+
+    if (!content) return;
     if (!wsSendMessage(currentChannel.id, content, replyId)) {
         alert('Não conectado ao chat. Aguarde.');
         return;
@@ -475,31 +495,116 @@ function sendMessage() {
     setReplyingTo(null);
 }
 
-async function sendImage(event) {
-    const file = event.target.files[0];
+// ── Anexos pendentes (drag & drop / botões / colar) ──────────────
+let pendingAttachments = [];
+const _attachUrls = new WeakMap();
+
+function stageFromInput(event) {
+    stageFiles(event.target.files);
     event.target.value = '';
-    if (!file || !currentChannel) return;
-    const res = await apiUploadImage(currentChannel.id, file);
-    if (res.error) showToast(res.error, 'error');
 }
 
-// Envio de arquivo genérico (PDF, docs, zip, etc.). Imagens caem no fluxo
-// de imagem para aparecerem inline.
-async function sendFile(event) {
-    const file = event.target.files[0];
-    event.target.value = '';
-    if (!file || !currentChannel) return;
-    if (file.type && file.type.startsWith('image/')) {
-        const r = await apiUploadImage(currentChannel.id, file);
-        if (r.error) showToast(r.error, 'error');
+function stageFiles(fileList) {
+    if (!currentChannel) { showToast('Abra um canal de texto primeiro', 'error'); return; }
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!files.length) return;
+    for (const f of files) pendingAttachments.push(f);
+    renderAttachTray();
+    document.getElementById('messageInput').focus();
+}
+
+function removePendingAttachment(idx) {
+    const f = pendingAttachments[idx];
+    if (f && _attachUrls.has(f)) { URL.revokeObjectURL(_attachUrls.get(f)); _attachUrls.delete(f); }
+    pendingAttachments.splice(idx, 1);
+    renderAttachTray();
+}
+
+function clearPendingAttachments() {
+    for (const f of pendingAttachments) {
+        if (_attachUrls.has(f)) { URL.revokeObjectURL(_attachUrls.get(f)); _attachUrls.delete(f); }
+    }
+    pendingAttachments = [];
+    renderAttachTray();
+}
+
+function renderAttachTray() {
+    const tray = document.getElementById('attachTray');
+    if (!tray) return;
+    const input = document.getElementById('messageInput');
+    if (!pendingAttachments.length) {
+        tray.classList.add('hidden');
+        tray.innerHTML = '';
+        if (input && currentChannel) input.placeholder = `Mensagem #${currentChannel.name}`;
         return;
     }
-    showToast('Enviando arquivo…');
-    const replyId = replyingTo ? replyingTo.id : null;
-    const res = await apiUploadFile(currentChannel.id, file, replyId);
-    if (res.error) showToast(res.error, 'error');
-    else setReplyingTo(null);
+    if (input) input.placeholder = 'Adicione uma legenda (opcional)…';
+    tray.classList.remove('hidden');
+    tray.innerHTML = pendingAttachments.map((f, i) => {
+        const isImg = f.type && f.type.startsWith('image/');
+        let media;
+        if (isImg) {
+            let url = _attachUrls.get(f);
+            if (!url) { url = URL.createObjectURL(f); _attachUrls.set(f, url); }
+            media = `<div class="att-chip-thumb" style="background-image:url('${url}')"></div>`;
+        } else {
+            media = `<div class="att-chip-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span class="att-chip-ext">${escapeHtml(fileExtLabel(f.name, f.type))}</span>
+            </div>`;
+        }
+        return `<div class="att-chip">
+            ${media}
+            <div class="att-chip-info">
+                <span class="att-chip-name">${escapeHtml(f.name)}</span>
+                <span class="att-chip-size">${formatBytes(f.size)}</span>
+            </div>
+            <button class="att-chip-x" onclick="removePendingAttachment(${i})" title="Remover">✕</button>
+        </div>`;
+    }).join('');
 }
+
+// Drag & drop sobre a área de chat
+(function initDragDrop() {
+    const zone = document.getElementById('chatView');
+    const overlay = document.getElementById('dropOverlay');
+    if (!zone || !overlay) return;
+    let depth = 0;
+    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+
+    zone.addEventListener('dragenter', e => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth++;
+        overlay.classList.remove('hidden');
+    });
+    zone.addEventListener('dragover', e => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+    zone.addEventListener('dragleave', e => {
+        if (!hasFiles(e)) return;
+        depth--;
+        if (depth <= 0) { depth = 0; overlay.classList.add('hidden'); }
+    });
+    zone.addEventListener('drop', e => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth = 0;
+        overlay.classList.add('hidden');
+        stageFiles(e.dataTransfer.files);
+    });
+})();
+
+// Colar arquivo/imagem (Ctrl+V) no campo de mensagem
+document.getElementById('messageInput').addEventListener('paste', e => {
+    const files = e.clipboardData && e.clipboardData.files;
+    if (files && files.length) {
+        e.preventDefault();
+        stageFiles(files);
+    }
+});
 
 const FILE_ORIGIN = API_BASE.replace(/\/api$/, '');
 

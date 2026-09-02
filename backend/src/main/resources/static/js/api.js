@@ -159,21 +159,27 @@ async function apiDeleteMessage(messageId) {
     return {};
 }
 
-async function apiUploadImage(channelId, file) {
+async function apiUploadImage(channelId, file, content, replyToMessageId) {
     const form = new FormData();
     form.append('image', file);
+    if (content) form.append('content', content);
+    if (replyToMessageId) form.append('replyToMessageId', replyToMessageId);
     const res = await fetch(API_BASE + `/channels/${channelId}/images`, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + getToken() },
         body: form
     });
-    if (!res.ok) return { error: `Erro ao enviar imagem (${res.status})` };
+    if (!res.ok) {
+        const j = await safeJson(res);
+        return { error: j.error || `Erro ao enviar imagem (${res.status})` };
+    }
     return safeJson(res);
 }
 
-async function apiUploadFile(channelId, file, replyToMessageId) {
+async function apiUploadFile(channelId, file, content, replyToMessageId) {
     const form = new FormData();
     form.append('file', file);
+    if (content) form.append('content', content);
     if (replyToMessageId) form.append('replyToMessageId', replyToMessageId);
     const res = await fetch(API_BASE + `/channels/${channelId}/files`, {
         method: 'POST',

@@ -48,7 +48,7 @@ public class MessageService {
     }
 
     /** Cria uma mensagem que carrega um anexo de arquivo. */
-    public MessageDTO sendFileMessageDTO(Long channelId, String publicId, String fileName,
+    public MessageDTO sendFileMessageDTO(Long channelId, String content, String publicId, String fileName,
                                          String fileType, long fileSize,
                                          Long replyToMessageId, User author) {
         Channel channel = channelRepository.findById(channelId)
@@ -57,7 +57,7 @@ public class MessageService {
                 ? messageRepository.findById(replyToMessageId).orElse(null)
                 : null;
         Message msg = Message.builder()
-                .content("")
+                .content(content != null ? content : "")
                 .author(author)
                 .channel(channel)
                 .replyToMessage(replyTo)

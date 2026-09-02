@@ -205,6 +205,17 @@
         </div>
 
         <div id="chatView" class="hidden">
+            <div id="dropOverlay" class="drop-overlay hidden">
+                <div class="drop-overlay-inner">
+                    <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <div class="drop-title">Solte para enviar</div>
+                    <div class="drop-sub">Você pode adicionar uma legenda antes de enviar</div>
+                </div>
+            </div>
             <div class="chat-header">
                 <!-- Back button (mobile only) -->
                 <button id="mobileBackBtn" onclick="showMobilePanel('canais')" title="Voltar">
@@ -267,6 +278,9 @@
             <!-- Popup de menção @ -->
             <div id="mentionPopup" class="mention-popup hidden"></div>
 
+            <!-- Bandeja de anexos pendentes (aparece ao arrastar/soltar ou anexar) -->
+            <div id="attachTray" class="attach-tray hidden"></div>
+
             <div class="message-input-area">
                 <button class="attach-btn" onclick="document.getElementById('imageFileInput').click()" title="Enviar imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -274,11 +288,11 @@
                 <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Enviar arquivo (PDF, documentos...)">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
-                <input type="file" id="fileInput" style="display:none" onchange="sendFile(event)">
+                <input type="file" id="fileInput" multiple style="display:none" onchange="stageFromInput(event)">
                 <button class="attach-btn emoji-picker-btn" onclick="toggleEmojiPicker(event)" title="Emojis" id="emojiPickerToggle">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                 </button>
-                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/*" style="display:none" onchange="sendImage(event)">
+                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/*" multiple style="display:none" onchange="stageFromInput(event)">
                 <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
                 <button onclick="sendMessage()">➤</button>
             </div>
