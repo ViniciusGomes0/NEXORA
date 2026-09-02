@@ -2561,3 +2561,243 @@ body {
     .local-video { width: 110px; height: 82px; bottom: 72px; right: 10px; }
 
 } /* end @media (max-width: 768px) */
+
+
+/* ═══════════════════════════════════════════════════════════════
+   REFINAMENTO VISUAL — CANAIS & CALL (estilo Discord moderno)
+   Somente CSS. Sobrescreve regras acima por ordem de cascata.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Categorias de canais ── */
+.channel-category {
+    padding: 18px 10px 6px 14px;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    transition: color 0.15s;
+}
+.channel-category:hover { color: var(--text-secondary); }
+
+.category-add-btn {
+    width: 20px;
+    height: 20px;
+    opacity: 0.55;
+    transition: opacity 0.15s, color 0.15s, background 0.15s, transform 0.15s;
+}
+.channel-category:hover .category-add-btn { opacity: 1; }
+.category-add-btn:hover { transform: scale(1.12); }
+
+/* ── Itens de canal (texto e voz) ── */
+.channels-scroll { padding: 0 2px 12px; }
+
+.channel-item {
+    gap: 6px;
+    padding: 7px 8px 7px 12px;
+    margin: 1px 6px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+.channel-item:hover { background: rgba(255,255,255,0.045); }
+.channel-item.active {
+    background: rgba(124,58,237,0.16);
+    color: #fff;
+}
+.channel-item.active .channel-icon { opacity: 1; color: #c4b5fd; }
+.channel-item.active::before {
+    left: -4px;
+    height: 18px;
+    width: 4px;
+    background: #a855f7;
+    box-shadow: 0 0 8px rgba(168,85,247,0.6);
+}
+
+.channel-icon {
+    font-size: 15px;
+    opacity: 0.55;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+.channel-item:hover .channel-icon { opacity: 0.85; }
+
+.ch-btn { width: 22px; height: 22px; border-radius: 5px; }
+
+/* ── Membros conectados ao canal de voz (sidebar) ── */
+.voice-sidebar-member {
+    gap: 9px;
+    padding: 4px 10px 4px 26px;
+    margin: 1px 6px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    position: relative;
+}
+.voice-sidebar-member::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    top: -3px;
+    bottom: 50%;
+    width: 9px;
+    border-left: 2px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    border-bottom-left-radius: 6px;
+    opacity: 0.5;
+}
+.voice-sidebar-member:hover { background: rgba(255,255,255,0.045); color: var(--text-primary); }
+.voice-sidebar-member > span:not(.vsm-mic) {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.vsm-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+}
+.voice-sidebar-member.speaking .vsm-avatar {
+    border-color: #23a55a;
+    box-shadow: 0 0 0 2px rgba(35,165,90,0.5);
+    animation: pulse-green 1.1s ease-in-out infinite;
+}
+
+.vsm-mic {
+    font-size: 11px;
+    opacity: 0.4;
+    filter: grayscale(0.4);
+    transition: opacity 0.15s;
+}
+.voice-sidebar-member.speaking .vsm-mic,
+.voice-sidebar-member.mic-active .vsm-mic { opacity: 0.9; filter: none; }
+
+/* ── Barra "Voz Conectada" ── */
+.voice-bar {
+    background: linear-gradient(180deg, rgba(35,165,90,0.10), rgba(35,165,90,0.04));
+    border-top: 1px solid rgba(35,165,90,0.22);
+    border-bottom: none;
+    padding: 12px;
+}
+.voice-bar-title { letter-spacing: 0.3px; color: #3ba55d; }
+.voice-bar-btn {
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+}
+.voice-bar-btn:hover { background: rgba(255,255,255,0.09); }
+
+/* ═══════ CALL VIEW ═══════ */
+.voice-view {
+    background: radial-gradient(ellipse 90% 70% at 50% 0%, #26272b, #1a1b1e 75%);
+}
+
+.call-header {
+    background: rgba(30,31,34,0.72);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Grade de participantes — tiles proporcionais e centralizados */
+.call-grid {
+    gap: 16px;
+    padding: 32px;
+    align-content: center;
+    justify-items: center;
+}
+.call-grid > .call-tile {
+    width: 100%;
+    max-width: 340px;
+    aspect-ratio: 16 / 10;
+    min-height: 0;
+}
+.call-grid:has(.call-tile:only-child) { max-width: 460px; }
+.call-grid:has(.call-tile:only-child) > .call-tile { aspect-ratio: 16 / 9; max-width: 100%; }
+
+.call-tile {
+    background: linear-gradient(180deg, #303136, #26272b);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 16px;
+    gap: 16px;
+    padding: 20px;
+    box-shadow: 0 8px 24px -12px rgba(0,0,0,0.6);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.call-tile:hover { transform: translateY(-2px); box-shadow: 0 14px 32px -14px rgba(0,0,0,0.7); }
+
+.call-tile-avatar {
+    width: 88px;
+    height: 88px;
+    font-size: 32px;
+    box-shadow: 0 6px 18px -6px rgba(0,0,0,0.55);
+}
+.call-tile.speaking { border-color: rgba(35,165,90,0.7); }
+.call-tile.speaking .call-tile-avatar {
+    border-color: #23a55a;
+    box-shadow: 0 0 0 5px rgba(35,165,90,0.25), 0 6px 18px -6px rgba(0,0,0,0.55);
+}
+
+.call-tile-name {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.call-tile-mute-badge {
+    bottom: 12px;
+    right: 12px;
+    left: auto;
+    width: 26px;
+    height: 26px;
+    background: rgba(237,66,69,0.92);
+}
+
+/* Controles — barra flutuante arredondada */
+.call-controls {
+    gap: 10px;
+    padding: 16px 20px 22px;
+    background: transparent;
+    border-top: none;
+}
+.call-controls > .call-ctrl-wrap {
+    background: rgba(30,31,34,0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px;
+    padding: 8px 10px 6px;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.6);
+}
+.call-ctrl-btn {
+    width: 46px;
+    height: 46px;
+    background: rgba(255,255,255,0.08);
+}
+.call-ctrl-btn:hover { background: rgba(255,255,255,0.16); }
+.call-ctrl-label { color: var(--text-secondary); font-size: 10px; }
+
+/* Miniatura da grade lateral quando há tela compartilhada */
+.call-body.screen-active .call-grid > .call-tile {
+    aspect-ratio: auto;
+    max-width: none;
+}
+.call-body.screen-active .call-tile-name {
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
+    padding: 0;
+}
