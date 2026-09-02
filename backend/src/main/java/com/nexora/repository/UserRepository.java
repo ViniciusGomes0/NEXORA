@@ -17,4 +17,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT m FROM Server s JOIN s.members m WHERE s.id = :serverId")
     List<User> findMembersByServerId(@Param("serverId") Long serverId);
+
+    @Query("SELECT COUNT(s) > 0 FROM Server s JOIN s.members m1 JOIN s.members m2 " +
+           "WHERE m1.id = :userA AND m2.id = :userB")
+    boolean shareAnyServer(@Param("userA") Long userA, @Param("userB") Long userB);
 }

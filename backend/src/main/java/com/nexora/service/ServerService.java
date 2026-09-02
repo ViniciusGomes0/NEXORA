@@ -66,6 +66,18 @@ public class ServerService {
                 .orElseThrow(() -> new RuntimeException("Servidor não encontrado"));
     }
 
+    /** Garante que o usuário é membro do servidor informado. */
+    public void assertMember(Long serverId, User user) {
+        if (!serverRepository.existsByIdAndMemberId(serverId, user.getId()))
+            throw new RuntimeException("Sem permissão");
+    }
+
+    /** Garante que o usuário é membro do servidor dono do canal informado. */
+    public void assertMemberByChannel(Long channelId, User user) {
+        if (!channelRepository.isUserInChannelServer(channelId, user.getId()))
+            throw new RuntimeException("Sem permissão");
+    }
+
     @Transactional
     public Channel createChannel(Long serverId, ChannelRequest req, User user) {
         Server server = getServer(serverId);
@@ -92,6 +104,8 @@ public class ServerService {
     public Channel renameChannel(Long channelId, String newName, User user) {
         Channel channel = channelRepository.findById(channelId)
                 .orElseThrow(() -> new RuntimeException("Canal não encontrado"));
+        if (!channel.getServer().getOwner().getId().equals(user.getId()))
+            throw new RuntimeException("Sem permissão");
         channel.setName(newName);
         return channelRepository.save(channel);
     }

@@ -66,12 +66,24 @@ public class ServerController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getServer(@PathVariable Long id) {
-        return ResponseEntity.ok(serverInfo(serverService.getServer(id)));
+    public ResponseEntity<?> getServer(@PathVariable Long id,
+                                       @AuthenticationPrincipal UserDetails ud) {
+        try {
+            serverService.assertMember(id, currentUser(ud));
+            return ResponseEntity.ok(serverInfo(serverService.getServer(id)));
+        } catch (Exception e) {
+            return ResponseEntity.status(403).body(Map.of("error", "Sem permissão"));
+        }
     }
 
     @GetMapping("/{id}/channels")
-    public ResponseEntity<?> getChannels(@PathVariable Long id) {
+    public ResponseEntity<?> getChannels(@PathVariable Long id,
+                                         @AuthenticationPrincipal UserDetails ud) {
+        try {
+            serverService.assertMember(id, currentUser(ud));
+        } catch (Exception e) {
+            return ResponseEntity.status(403).body(Map.of("error", "Sem permissão"));
+        }
         List<Channel> channels = serverService.getChannels(id);
         return ResponseEntity.ok(channels.stream().map(c -> Map.of(
             "id", c.getId(),
@@ -121,7 +133,13 @@ public class ServerController {
     }
 
     @GetMapping("/{id}/members")
-    public ResponseEntity<?> getMembers(@PathVariable Long id) {
+    public ResponseEntity<?> getMembers(@PathVariable Long id,
+                                        @AuthenticationPrincipal UserDetails ud) {
+        try {
+            serverService.assertMember(id, currentUser(ud));
+        } catch (Exception e) {
+            return ResponseEntity.status(403).body(Map.of("error", "Sem permissão"));
+        }
         List<User> members = serverService.getMembersOfServer(id);
         return ResponseEntity.ok(members.stream().map(u -> {
             Map<String, Object> m = new HashMap<>();
@@ -152,7 +170,7 @@ public class ServerController {
                                               @AuthenticationPrincipal UserDetails ud) {
         try {
             User user = currentUser(ud);
-            String mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+            String mime = sanitizeImageMime(file.getContentType());
             String base64 = Base64.getEncoder().encodeToString(file.getBytes());
             String iconUrl = "data:" + mime + ";base64," + base64;
             ServerRequest req = new ServerRequest();
@@ -184,6 +202,15 @@ public class ServerController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    private static String sanitizeImageMime(String raw) {
+        if (raw == null) return "image/jpeg";
+        String v = raw.trim().toLowerCase();
+        return switch (v) {
+            case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp" -> v;
+            default -> "image/jpeg";
+        };
     }
 
     private Map<String, Object> serverInfo(Server s) {

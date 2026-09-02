@@ -24,8 +24,13 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getUser(@PathVariable Long id) {
+    public ResponseEntity<?> getUser(@PathVariable Long id,
+                                     @AuthenticationPrincipal UserDetails ud) {
         try {
+            User me = userService.findByDisplayName(ud.getUsername());
+            if (!me.getId().equals(id) && !userService.shareAnyServer(me.getId(), id)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Sem permissão"));
+            }
             User user = userService.findById(id);
             return ResponseEntity.ok(profileMap(user));
         } catch (Exception e) {

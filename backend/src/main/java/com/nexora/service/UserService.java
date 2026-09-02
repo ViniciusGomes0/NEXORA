@@ -60,6 +60,10 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
     }
 
+    public boolean shareAnyServer(Long userA, Long userB) {
+        return userRepository.shareAnyServer(userA, userB);
+    }
+
     public User updateProfile(Long userId, String displayName, String avatarUrl) {
         User user = findById(userId);
         if (displayName != null && !displayName.isBlank()) user.setDisplayName(displayName);

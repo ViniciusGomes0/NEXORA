@@ -3,6 +3,7 @@ package com.nexora.controller;
 import com.nexora.dto.MessageDTO;
 import com.nexora.model.User;
 import com.nexora.service.MessageService;
+import com.nexora.service.ServerService;
 import com.nexora.service.UserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -24,12 +25,19 @@ public class ChatController {
 
     private final MessageService messageService;
     private final UserService userService;
+    private final ServerService serverService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @GetMapping("/api/channels/{channelId}/messages")
-    public ResponseEntity<List<MessageDTO>> getMessages(@PathVariable Long channelId,
-                                                         @RequestParam(defaultValue = "0") int page,
-                                                         @AuthenticationPrincipal UserDetails ud) {
+    public ResponseEntity<?> getMessages(@PathVariable Long channelId,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @AuthenticationPrincipal UserDetails ud) {
+        User user = userService.findByDisplayName(ud.getUsername());
+        try {
+            serverService.assertMemberByChannel(channelId, user);
+        } catch (Exception e) {
+            return ResponseEntity.status(403).body(java.util.Map.of("error", "Sem permissão"));
+        }
         return ResponseEntity.ok(messageService.getMessages(channelId, page));
     }
 
@@ -38,6 +46,7 @@ public class ChatController {
                                @Payload IncomingMessage incoming,
                                Principal principal) {
         User user = userService.findByDisplayName(principal.getName());
+        serverService.assertMemberByChannel(channelId, user);
         MessageDTO dto = messageService.sendMessageDTO(channelId, incoming.getContent(), null, incoming.getReplyToMessageId(), user);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId, dto);
     }
@@ -48,7 +57,8 @@ public class ChatController {
                                          @AuthenticationPrincipal UserDetails ud) {
         try {
             User user = userService.findByDisplayName(ud.getUsername());
-            String mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+            serverService.assertMemberByChannel(channelId, user);
+            String mime = sanitizeImageMime(file.getContentType());
             String base64 = Base64.getEncoder().encodeToString(file.getBytes());
             String imageUrl = "data:" + mime + ";base64," + base64;
             MessageDTO dto = messageService.sendMessageDTO(channelId, "", imageUrl, null, user);
@@ -70,7 +80,19 @@ public class ChatController {
 
     @MessageMapping("/chat/{channelId}/typing")
     public void handleTyping(@DestinationVariable Long channelId, Principal principal) {
+        User user = userService.findByDisplayName(principal.getName());
+        serverService.assertMemberByChannel(channelId, user);
         messagingTemplate.convertAndSend("/topic/channel/" + channelId + "/typing", principal.getName());
+    }
+
+    /** Só permite tipos de imagem conhecidos; qualquer outra coisa vira image/jpeg. */
+    private static String sanitizeImageMime(String raw) {
+        if (raw == null) return "image/jpeg";
+        String v = raw.trim().toLowerCase();
+        return switch (v) {
+            case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp" -> v;
+            default -> "image/jpeg";
+        };
     }
 
     @Data
