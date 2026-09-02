@@ -2801,3 +2801,134 @@ body {
     backdrop-filter: none;
     padding: 0;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DIALOG — CONFIGURAÇÕES DO SERVIDOR (repaginado, só CSS)
+   ═══════════════════════════════════════════════════════════════ */
+.modal-overlay { background: rgba(6,6,14,0.72); backdrop-filter: blur(4px); }
+
+.modal:has(#modal-serverSettings:not(.hidden)) { overflow: hidden; padding: 32px; }
+
+#modal-serverSettings {
+    /* neutraliza o padding do .modal para desenhar seções próprias */
+    margin: -32px;
+    max-height: 88vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+/* Cabeçalho com faixa em gradiente */
+#modal-serverSettings h3 {
+    margin: 0;
+    padding: 26px 32px 46px;
+    font-size: 19px;
+    letter-spacing: -0.2px;
+    background:
+        radial-gradient(circle at 18% 0%, rgba(255,255,255,0.16), transparent 46%),
+        linear-gradient(135deg, #a855f7, #7c3aed 52%, #4f46e5);
+    color: #fff;
+}
+
+/* Avatar sobreposto à faixa */
+#modal-serverSettings .server-icon-upload-area {
+    width: 88px;
+    height: 88px;
+    margin: -52px auto 6px;
+    border-radius: 24px;
+    border: 4px solid var(--bg-medium);
+    box-shadow: 0 0 0 4px rgba(124,58,237,0.30), 0 14px 30px -10px rgba(0,0,0,0.6);
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+#modal-serverSettings .server-icon-upload-area:hover { transform: translateY(-2px); box-shadow: 0 0 0 4px rgba(168,85,247,0.55), 0 14px 30px -10px rgba(0,0,0,0.6); }
+#modal-serverSettings .server-icon-preview { border-radius: 20px; font-size: 30px; }
+#modal-serverSettings .server-icon-upload-overlay { border-radius: 20px; }
+
+/* Corpo com respiro lateral */
+#modal-serverSettings > label,
+#modal-serverSettings > input,
+#modal-serverSettings > div:not(.danger-zone),
+#modal-serverSettings > hr,
+#modal-serverSettings > .modal-actions { margin-left: 32px; margin-right: 32px; }
+
+#modal-serverSettings > label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    margin-top: 18px;
+}
+#modal-serverSettings > label:first-of-type { margin-top: 4px; }
+
+#modal-serverSettings input[type=text] {
+    padding: 12px 14px;
+    background: var(--bg-darkest);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14.5px;
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+#modal-serverSettings input[type=text]:focus {
+    border-color: var(--accent);
+    background: #101024;
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.22);
+}
+
+/* Divisores viram espaçamento sutil */
+#modal-serverSettings > hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    opacity: 0.6;
+    margin-top: 22px !important;
+    margin-bottom: 4px !important;
+}
+
+/* Bloco do código de convite */
+#modal-serverSettings > div[style*="display:flex"] {
+    gap: 8px !important;
+    margin-top: 6px;
+}
+#modal-serverSettings .invite-box {
+    padding: 13px 14px;
+    font-size: 17px;
+    letter-spacing: 2.5px;
+    background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.04));
+    border: 1px solid rgba(124,58,237,0.35);
+    border-radius: 10px;
+    color: #c4b5fd;
+}
+#modal-serverSettings .btn-secondary {
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--bg-hover);
+}
+#modal-serverSettings .btn-secondary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Ações */
+#modal-serverSettings .modal-actions {
+    margin-top: 22px;
+    padding-bottom: 4px;
+}
+#modal-serverSettings .btn-primary,
+#modal-serverSettings .modal-actions .btn-secondary {
+    padding: 11px 22px;
+    border-radius: 10px;
+}
+#modal-serverSettings .btn-primary { box-shadow: 0 8px 22px -8px rgba(124,58,237,0.7); }
+
+/* Zona de perigo — card destacado no rodapé */
+#modal-serverSettings .danger-zone {
+    margin: 8px 24px 24px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(239,68,68,0.07);
+    border: 1px solid rgba(239,68,68,0.28);
+}
+#modal-serverSettings .danger-zone-label { font-size: 11px; letter-spacing: 0.5px; }
+#modal-serverSettings .btn-danger {
+    padding: 9px 16px;
+    border-radius: 8px;
+    box-shadow: 0 6px 16px -6px rgba(239,68,68,0.6);
+    transition: background 0.15s, transform 0.1s, box-shadow 0.2s;
+}
+#modal-serverSettings .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -6px rgba(239,68,68,0.7); }
