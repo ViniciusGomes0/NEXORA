@@ -292,11 +292,11 @@
                 <button class="attach-btn emoji-picker-btn" onclick="toggleEmojiPicker(event)" title="Emojis" id="emojiPickerToggle">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                 </button>
-                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/*" multiple style="display:none" onchange="stageFromInput(event)">
-                <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
                 <button class="attach-btn mic-record-btn" id="micRecordBtn" onclick="toggleAudioRecord()" title="Gravar mensagem de voz">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                 </button>
+                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/*" multiple style="display:none" onchange="stageFromInput(event)">
+                <input type="text" id="messageInput" placeholder="Mensagem #canal" maxlength="2000">
                 <button onclick="sendMessage()">➤</button>
 
                 <!-- Barra de gravação de áudio (sobrepõe o campo enquanto grava) -->
