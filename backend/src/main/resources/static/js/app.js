@@ -156,14 +156,14 @@ async function loadServers() {
         const btn = document.createElement('div');
         btn.className = 'server-icon';
         btn.title = s.name;
-        const icon = serverIconCache[s.id] || s.iconUrl || '';
+        const icon = safeImageUrl(serverIconCache[s.id] || s.iconUrl || '');
         if (icon) {
-            btn.style.backgroundImage = `url('${icon}')`;
+            btn.style.backgroundImage = `url("${icon}")`;
             btn.style.backgroundSize = 'cover';
             btn.style.backgroundPosition = 'center';
             btn.innerHTML = `<span class="server-icon-text"></span>`;
         } else {
-            btn.innerHTML = `<span class="server-icon-text">${s.name[0].toUpperCase()}</span>`;
+            btn.innerHTML = `<span class="server-icon-text">${escapeHtml((s.name[0] || '?').toUpperCase())}</span>`;
         }
         btn.onclick = () => selectServer(s);
         btn.dataset.serverId = s.id;
@@ -316,13 +316,15 @@ function appendMessage(msg) {
     const rawDate = msg.createdAt && !msg.createdAt.endsWith('Z') ? msg.createdAt + 'Z' : msg.createdAt;
     const time = new Date(rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
-    const avatarHtml = msg.authorAvatarUrl
-        ? `<div class="msg-avatar" style="background-image:url('${msg.authorAvatarUrl}');background-size:cover;background-position:center;"></div>`
-        : `<div class="msg-avatar">${initial}</div>`;
+    const safeAvatar = safeImageUrl(msg.authorAvatarUrl);
+    const avatarHtml = safeAvatar
+        ? `<div class="msg-avatar" style="background-image:url('${safeAvatar}');background-size:cover;background-position:center;"></div>`
+        : `<div class="msg-avatar">${escapeHtml(initial)}</div>`;
 
     const textHtml = msg.content ? `<div class="msg-content">${formatMentions(msg.content)}</div>` : '';
-    const imageHtml = msg.imageUrl
-        ? `<div class="msg-image-wrap"><img class="msg-image" src="${msg.imageUrl}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
+    const safeImg = safeImageUrl(msg.imageUrl);
+    const imageHtml = safeImg
+        ? `<div class="msg-image-wrap"><img class="msg-image" src="${safeImg}" alt="imagem" onclick="openImageViewer(this.src)"></div>`
         : '';
 
     let replyHtml = '';
@@ -411,8 +413,20 @@ function openImageViewer(src) {
 }
 
 function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return String(str == null ? '' : str)
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
               .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// Só aceita URLs de imagem seguras (http/https ou data:image/...).
+// Bloqueia javascript:, e quebras de atributo/HTML via aspas.
+function safeImageUrl(url) {
+    if (!url) return '';
+    const s = String(url).trim();
+    if (/["'()<>]/.test(s)) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,[a-z0-9+/=\s]+$/i.test(s)) return s;
+    return '';
 }
 
 function scrollToBottom() {
@@ -528,24 +542,25 @@ function handleMentionInput() {
 
 function renderMentionPopup(members) {
     const popup = document.getElementById('mentionPopup');
-    popup.innerHTML = `<div class="mention-popup-header">Membros — ${currentServer ? currentServer.name : ''}</div>`;
+    popup.innerHTML = `<div class="mention-popup-header">Membros — ${escapeHtml(currentServer ? currentServer.name : '')}</div>`;
     mentionSelectedIndex = 0;
 
     members.forEach((m, i) => {
         const name = m.displayName || m.username || '?';
         const tag = m.username || '';
         const initial = name[0].toUpperCase();
-        const avatarStyle = m.avatarUrl
-            ? `style="background-image:url('${m.avatarUrl}');background-size:cover;background-position:center;"`
+        const safeAvatar = safeImageUrl(m.avatarUrl);
+        const avatarStyle = safeAvatar
+            ? `style="background-image:url('${safeAvatar}');background-size:cover;background-position:center;"`
             : '';
 
         const item = document.createElement('div');
         item.className = 'mention-item' + (i === 0 ? ' selected' : '');
         item.dataset.name = name;
         item.innerHTML = `
-            <div class="mention-avatar" ${avatarStyle}>${m.avatarUrl ? '' : initial}</div>
-            <span class="mention-name">${name}</span>
-            <span class="mention-tag">${tag}</span>
+            <div class="mention-avatar" ${avatarStyle}>${safeAvatar ? '' : escapeHtml(initial)}</div>
+            <span class="mention-name">${escapeHtml(name)}</span>
+            <span class="mention-tag">${escapeHtml(tag)}</span>
         `;
         item.addEventListener('mousedown', e => {
             e.preventDefault();
@@ -598,16 +613,17 @@ function renderMembers(members) {
         const div = document.createElement('div');
         div.className = `member-item${m.online ? '' : ' member-offline'}`;
 
-        const avatarHtml = m.avatarUrl
-            ? `<div class="member-avatar" style="background-image:url('${m.avatarUrl}');background-size:cover;background-position:center;"></div>`
-            : `<div class="member-avatar">${initial}</div>`;
+        const safeAvatar = safeImageUrl(m.avatarUrl);
+        const avatarHtml = safeAvatar
+            ? `<div class="member-avatar" style="background-image:url('${safeAvatar}');background-size:cover;background-position:center;"></div>`
+            : `<div class="member-avatar">${escapeHtml(initial)}</div>`;
 
         div.innerHTML = `
             <div class="member-avatar-wrap">
                 ${avatarHtml}
                 <span class="member-status-dot ${m.online ? 'dot-online' : 'dot-offline'}"></span>
             </div>
-            <div class="member-name">${name}${isMe ? ' <span class="you-tag">você</span>' : ''}</div>
+            <div class="member-name">${escapeHtml(name)}${isMe ? ' <span class="you-tag">você</span>' : ''}</div>
         `;
         div.style.cursor = 'pointer';
         div.addEventListener('click', () => openUserProfile(m.id));
@@ -638,17 +654,18 @@ function buildChannelItem(ch) {
     item.dataset.channelType = ch.type;
 
     const icon = ch.type === 'TEXT' ? '#' : '🔊';
+    item.dataset.channelName = ch.name;
     item.innerHTML = `
         <span class="channel-icon">${icon}</span>
-        <span class="channel-name-text">${ch.name}</span>
+        <span class="channel-name-text">${escapeHtml(ch.name)}</span>
         <span class="channel-actions">
-            <button class="ch-btn" onclick="event.stopPropagation(); openRenameChannel(${ch.id}, this.closest('[data-channel-id]').querySelector('.channel-name-text').textContent)" title="Renomear">
+            <button class="ch-btn" onclick="event.stopPropagation(); openRenameChannel(${ch.id}, this.closest('[data-channel-id]').dataset.channelName)" title="Renomear">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
             </button>
-            <button class="ch-btn ch-del" onclick="event.stopPropagation(); confirmDeleteChannel(${ch.id}, '${ch.name.replace(/'/g, "\\'")}')" title="Deletar">
+            <button class="ch-btn ch-del" onclick="event.stopPropagation(); confirmDeleteChannel(${ch.id}, this.closest('[data-channel-id]').dataset.channelName)" title="Deletar">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -979,8 +996,9 @@ function openProfilePanel() {
     document.getElementById('profileDisplayName').value = user.displayName || user.username;
 
     const avatarEl = document.getElementById('profileAvatarLarge');
-    if (user.avatarUrl) {
-        avatarEl.style.backgroundImage = `url('${user.avatarUrl}')`;
+    const profileAvatar = safeImageUrl(user.avatarUrl);
+    if (profileAvatar) {
+        avatarEl.style.backgroundImage = `url("${profileAvatar}")`;
         avatarEl.textContent = '';
     } else {
         avatarEl.style.backgroundImage = '';
@@ -999,8 +1017,9 @@ async function openUserProfile(userId) {
     document.getElementById('userProfileUsername').textContent = name;
     document.getElementById('userProfileTag').textContent = '#' + (data.tag || data.username);
     const avatarEl = document.getElementById('userProfileAvatar');
-    if (data.avatarUrl) {
-        avatarEl.style.backgroundImage = `url('${data.avatarUrl}')`;
+    const userAvatar = safeImageUrl(data.avatarUrl);
+    if (userAvatar) {
+        avatarEl.style.backgroundImage = `url("${userAvatar}")`;
         avatarEl.textContent = '';
     } else {
         avatarEl.style.backgroundImage = '';
@@ -1070,8 +1089,9 @@ async function saveProfile() {
 }
 
 function updateUserAvatar(el, avatarUrl, displayName) {
-    if (avatarUrl) {
-        el.style.backgroundImage = `url('${avatarUrl}')`;
+    const safe = safeImageUrl(avatarUrl);
+    if (safe) {
+        el.style.backgroundImage = `url("${safe}")`;
         el.style.backgroundSize = 'cover';
         el.style.backgroundPosition = 'center';
         el.textContent = '';
